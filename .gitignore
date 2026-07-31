@@ -1,0 +1,20 @@
+# Python & Environment
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+.env
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local Experimentation Scratchpad
+scratch/
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
