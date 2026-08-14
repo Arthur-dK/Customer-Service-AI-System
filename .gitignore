@@ -5,6 +5,7 @@ __pycache__/
 .venv/
 env/
 .env
+.cache/
 
 # Testing & Coverage
 .pytest_cache/
