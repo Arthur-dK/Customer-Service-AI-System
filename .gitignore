@@ -6,6 +6,7 @@ __pycache__/
 env/
 .env
 .cache/
+.cursor/
 
 # Testing & Coverage
 .pytest_cache/
@@ -14,6 +15,7 @@ htmlcov/
 
 # Local Experimentation Scratchpad
 scratch/
+.cache/
 
 # IDE & OS
 .vscode/
