@@ -1,1 +1,29 @@
-# For shared FastAPI dependencies
+"""Shared FastAPI / IVR dependencies."""
+
+from functools import lru_cache
+
+from core.config import settings
+from services.ivr.lid import LanguageIdentifier, build_default_lid
+from services.ivr.tts import TextToSpeech, build_default_tts
+from services.ivr.vad import VadConfig
+
+
+@lru_cache(maxsize=1)
+def get_tts() -> TextToSpeech:
+    return build_default_tts(
+        piper_model_path=settings.IVR_PIPER_MODEL_PATH,
+        piper_bin=settings.IVR_PIPER_BIN,
+    )
+
+
+@lru_cache(maxsize=1)
+def get_lid() -> LanguageIdentifier:
+    return build_default_lid(
+        prefer_speechbrain=settings.IVR_USE_SPEECHBRAIN_LID,
+        force_language=settings.IVR_LID_FORCE_LANGUAGE,
+        speechbrain_model=settings.IVR_SPEECHBRAIN_MODEL,
+    )
+
+
+def get_vad_config() -> VadConfig:
+    return VadConfig(rms_threshold=settings.IVR_VAD_RMS_THRESHOLD)

@@ -1,0 +1,10 @@
+# Optional IVR language-ID stack (Phase 10).
+# Install into the project venv when you want real SpeechBrain LID:
+#   .\venv\Scripts\python.exe -m pip install -r requirements-ivr-lid.txt
+#
+# On Windows, services/ivr/lid.py patches SpeechBrain's lazy-import inspect
+# guard so model load works without optional deps like k2.
+
+torch>=2.2.0,<=2.9.0
+torchaudio>=2.2.0,<=2.9.0
+speechbrain>=1.0.0
