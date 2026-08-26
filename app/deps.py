@@ -4,6 +4,7 @@ from functools import lru_cache
 
 from core.config import settings
 from services.ivr.lid import LanguageIdentifier, build_default_lid
+from services.ivr.phrase_cache import PhraseAudioCache
 from services.ivr.tts import TextToSpeech, build_default_tts
 from services.ivr.vad import VadConfig
 
@@ -27,3 +28,8 @@ def get_lid() -> LanguageIdentifier:
 
 def get_vad_config() -> VadConfig:
     return VadConfig(rms_threshold=settings.IVR_VAD_RMS_THRESHOLD)
+
+
+@lru_cache(maxsize=1)
+def get_phrase_cache() -> PhraseAudioCache:
+    return PhraseAudioCache(get_tts())

@@ -1,0 +1,33 @@
+{
+  "warmup_languages": ["en", "fr"],
+  "phrases": {
+    "language_select": {
+      "en": "Please say the name of the language you would like to use.",
+      "fr": "Veuillez dire le nom de la langue que vous souhaitez utiliser."
+    },
+    "did_not_catch": {
+      "en": "Sorry, I did not catch that. Please try again.",
+      "fr": "Désolé, je n'ai pas compris. Veuillez réessayer."
+    },
+    "main_menu": {
+      "en": "You can say balance, PIN, or block card. You can also say goodbye.",
+      "fr": "Vous pouvez dire solde, code PIN, ou bloquer la carte. Vous pouvez aussi dire au revoir."
+    },
+    "placeholder_balance": {
+      "en": "Your available balance is one hundred dollars. This is a placeholder.",
+      "fr": "Votre solde disponible est de cent dollars. Ceci est un exemple."
+    },
+    "placeholder_pin": {
+      "en": "Your PIN is one two three four. This is a placeholder.",
+      "fr": "Votre code PIN est un deux trois quatre. Ceci est un exemple."
+    },
+    "placeholder_blocked": {
+      "en": "Your card has been blocked. This is a placeholder.",
+      "fr": "Votre carte a été bloquée. Ceci est un exemple."
+    },
+    "goodbye": {
+      "en": "Goodbye.",
+      "fr": "Au revoir."
+    }
+  }
+}

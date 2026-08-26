@@ -5,7 +5,7 @@
 | **Feature ID** | FEAT-03 |
 | **Name** | Low-latency STT/TTS plumbing + Time-To-First-Audio-Byte |
 | **Branch** | `feat/ivr-latency-audio-pipeline` |
-| **Status** | In progress (Phase 1) |
+| **Status** | In progress (Phase 2) |
 | **Target** | After the caller stops talking, canned reply audio starts sending in under ~0.5s |
 
 This is the process/runbook for the latency pipeline. Language selection remains [FEAT-02](FEAT-02.md). Architectural decisions for this feature start at [ADR-011](../adr/ADR-011.md).
@@ -39,18 +39,20 @@ This is the process/runbook for the latency pipeline. Language selection remains
 
 Each phase is a small slice with its own tests. Do not start the next phase until the current one is green.
 
-### Phase 1 — TTFB timer harness *(this phase)*
+### Phase 1 — TTFB timer harness
 
 - **Goal:** One shared stopwatch with a frozen definition of start/stop, budgets, and “typical” (median) canned SLO.
 - **Delivered:** `services/ivr/ttfb.py`; [ADR-011](../adr/ADR-011.md).
 - **Tests:** `tests/ivr/pytest/test_ttfb.py` (fake clock; no Twilio, no vendors).
 - **Done when:** pytest for TTFB passes; harness is not yet wired into live calls.
 
-### Phase 2 — Phrase catalog + instant cache
+### Phase 2 — Phrase catalog + instant cache *(this phase)*
 
 - **Goal:** Menus, errors, and placeholder-task lines have stable **phrase IDs**. Hot path is “look up ready audio,” not “ask TTS again.”
-- **Tests:** cache hit does not call the synthesizer; English + one other language fixtures.
-- **Depends on:** Phase 1 only for later TTFB on cache hits.
+- **Delivered:** `core/language/phrases.json`, `core/language/phrases.py`, `services/ivr/phrase_cache.py`; [ADR-012](../adr/ADR-012.md). App startup warms English (and French when TTS can speak it).
+- **Tests:** `tests/ivr/pytest/test_phrase_cache.py` — cache hit does not call the synthesizer; English + French fixtures; ready lookup TTFB is dict-only.
+- **Depends on:** Phase 1 only for the lookup TTFB check.
+- **Done when:** pytest for phrases passes. Language selector still uses text TTS for dynamic DTMF menus.
 
 ### Phase 3 — Streaming TTS interface + free stub
 
@@ -101,6 +103,7 @@ Not in this branch’s demo path, but keep in mind:
 | ADR | Title | Role |
 |-----|--------|------|
 | [ADR-011](../adr/ADR-011.md) | TTFB clock for IVR reply audio | Phase 1 definition |
+| [ADR-012](../adr/ADR-012.md) | Phrase IDs and ready audio buffers | Phase 2 catalog + hot-path lookup |
 | [ADR-003](../adr/ADR-003.md) | 8 kHz μ-law wire format | Unchanged |
 | [ADR-004](../adr/ADR-004.md) | Energy VAD `speech_end` | Clock start |
 | [ADR-005](../adr/ADR-005.md) | TTS + burst playback | Playback; phrase cache will extend this |
@@ -110,13 +113,15 @@ Later phases will add ADRs for STT/TTS backend choice when those interfaces land
 
 ---
 
-## Key code (Phase 1)
+## Key code (Phases 1–2)
 
 | Area | Path |
 |------|------|
 | TTFB harness | `services/ivr/ttfb.py` |
-| Pytest | `tests/ivr/pytest/test_ttfb.py` |
+| Phrase catalog | `core/language/phrases.json`, `core/language/phrases.py` |
+| Ready-audio cache | `services/ivr/phrase_cache.py` |
+| Pytest | `tests/ivr/pytest/test_ttfb.py`, `tests/ivr/pytest/test_phrase_cache.py` |
 
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/ivr/pytest/test_ttfb.py -q
+.\venv\Scripts\python.exe -m pytest tests/ivr/pytest/test_ttfb.py tests/ivr/pytest/test_phrase_cache.py -q
 ```

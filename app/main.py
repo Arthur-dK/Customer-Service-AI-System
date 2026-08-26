@@ -5,7 +5,7 @@ import logging
 from fastapi import FastAPI
 
 from app.api import email, health, ivr, sms
-from app.deps import get_lid, get_tts
+from app.deps import get_lid, get_phrase_cache, get_tts
 from core.config import settings
 from services.ivr.tts import warm_language_selection_prompts
 
@@ -23,6 +23,12 @@ async def lifespan(_app: FastAPI):
         await warm_language_selection_prompts(get_tts())
     except Exception:
         log.exception("TTS prompt warmup failed; first call may be slow")
+
+    try:
+        warmed = await get_phrase_cache().warmup()
+        log.info("IVR phrase cache warmed count=%s", warmed)
+    except Exception:
+        log.exception("IVR phrase cache warmup failed; canned lines may synth on first use")
 
     # Load SpeechBrain (or fixed LID) once at boot — first-call get_lid() was ~11s on a live call.
     try:
