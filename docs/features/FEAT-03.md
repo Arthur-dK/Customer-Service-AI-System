@@ -5,7 +5,7 @@
 | **Feature ID** | FEAT-03 |
 | **Name** | Low-latency STT/TTS plumbing + Time-To-First-Audio-Byte |
 | **Branch** | `feat/ivr-latency-audio-pipeline` |
-| **Status** | In progress (Phase 2) |
+| **Status** | In progress (Phase 3) |
 | **Target** | After the caller stops talking, canned reply audio starts sending in under ~0.5s |
 
 This is the process/runbook for the latency pipeline. Language selection remains [FEAT-02](FEAT-02.md). Architectural decisions for this feature start at [ADR-011](../adr/ADR-011.md).
@@ -46,7 +46,7 @@ Each phase is a small slice with its own tests. Do not start the next phase unti
 - **Tests:** `tests/ivr/pytest/test_ttfb.py` (fake clock; no Twilio, no vendors).
 - **Done when:** pytest for TTFB passes; harness is not yet wired into live calls.
 
-### Phase 2 — Phrase catalog + instant cache *(this phase)*
+### Phase 2 — Phrase catalog + instant cache
 
 - **Goal:** Menus, errors, and placeholder-task lines have stable **phrase IDs**. Hot path is “look up ready audio,” not “ask TTS again.”
 - **Delivered:** `core/language/phrases.json`, `core/language/phrases.py`, `services/ivr/phrase_cache.py`; [ADR-012](../adr/ADR-012.md). App startup warms English (and French when TTS can speak it).
@@ -54,11 +54,13 @@ Each phase is a small slice with its own tests. Do not start the next phase unti
 - **Depends on:** Phase 1 only for the lookup TTFB check.
 - **Done when:** pytest for phrases passes. Language selector still uses text TTS for dynamic DTMF menus.
 
-### Phase 3 — Streaming TTS interface + free stub
+### Phase 3 — Streaming TTS interface + free stub *(this phase)*
 
 - **Goal:** TTS can emit μ-law **chunks**. First chunk is `mark_first_audio_byte`. Stub/tone (and later Piper) work without a paid API.
-- **Tests:** stub yields chunks; first chunk records TTFB; swapping the backend is a constructor choice.
-- **Later swap:** paid streaming TTS (e.g. Cartesia) behind the same interface.
+- **Delivered:** `services/ivr/streaming_tts.py`; [ADR-013](../adr/ADR-013.md). `ToneStreamingTextToSpeech` stub; `BatchStreamingTextToSpeech` wraps existing engines; `stream_ready_phrase` for warmed catalog lines; `enqueue_tts_stream` for outbound + TTFB.
+- **Tests:** `tests/ivr/pytest/test_streaming_tts.py`.
+- **Later swap:** paid streaming TTS (e.g. Cartesia) implements the same protocol. In-house: stream from a local engine on that protocol.
+- **Done when:** pytest for streaming TTS passes. Not yet wired into live Twilio playback.
 
 ### Phase 4 — Streaming STT interface + free stub
 
@@ -104,6 +106,7 @@ Not in this branch’s demo path, but keep in mind:
 |-----|--------|------|
 | [ADR-011](../adr/ADR-011.md) | TTFB clock for IVR reply audio | Phase 1 definition |
 | [ADR-012](../adr/ADR-012.md) | Phrase IDs and ready audio buffers | Phase 2 catalog + hot-path lookup |
+| [ADR-013](../adr/ADR-013.md) | Streaming TTS protocol (chunked μ-law) | Phase 3 stub + batch adapter |
 | [ADR-003](../adr/ADR-003.md) | 8 kHz μ-law wire format | Unchanged |
 | [ADR-004](../adr/ADR-004.md) | Energy VAD `speech_end` | Clock start |
 | [ADR-005](../adr/ADR-005.md) | TTS + burst playback | Playback; phrase cache will extend this |
@@ -113,15 +116,16 @@ Later phases will add ADRs for STT/TTS backend choice when those interfaces land
 
 ---
 
-## Key code (Phases 1–2)
+## Key code (Phases 1–3)
 
 | Area | Path |
 |------|------|
 | TTFB harness | `services/ivr/ttfb.py` |
 | Phrase catalog | `core/language/phrases.json`, `core/language/phrases.py` |
 | Ready-audio cache | `services/ivr/phrase_cache.py` |
-| Pytest | `tests/ivr/pytest/test_ttfb.py`, `tests/ivr/pytest/test_phrase_cache.py` |
+| Streaming TTS | `services/ivr/streaming_tts.py` |
+| Pytest | `tests/ivr/pytest/test_ttfb.py`, `test_phrase_cache.py`, `test_streaming_tts.py` |
 
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/ivr/pytest/test_ttfb.py tests/ivr/pytest/test_phrase_cache.py -q
+.\venv\Scripts\python.exe -m pytest tests/ivr/pytest/test_ttfb.py tests/ivr/pytest/test_phrase_cache.py tests/ivr/pytest/test_streaming_tts.py -q
 ```
