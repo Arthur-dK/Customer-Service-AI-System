@@ -16,6 +16,8 @@ def get_tts() -> TextToSpeech:
     return build_default_tts(
         piper_model_path=settings.IVR_PIPER_MODEL_PATH,
         piper_bin=settings.IVR_PIPER_BIN,
+        piper_voices=settings.IVR_PIPER_VOICES,
+        piper_voice_dir=settings.IVR_PIPER_VOICE_DIR,
     )
 
 

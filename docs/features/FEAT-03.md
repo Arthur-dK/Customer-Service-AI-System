@@ -5,7 +5,7 @@
 | **Feature ID** | FEAT-03 |
 | **Name** | Low-latency STT/TTS plumbing + Time-To-First-Audio-Byte |
 | **Branch** | `feat/ivr-latency-audio-pipeline` |
-| **Status** | Implemented (Phases 1–7) |
+| **Status** | Implemented (Phases 1–7) + Phase 7b (TTS voice matching) |
 | **Target** | After the caller stops talking, canned reply audio starts sending in under ~0.5s |
 
 This is the process/runbook for the latency pipeline. Language selection remains [FEAT-02](FEAT-02.md). Architectural decisions for this feature start at [ADR-011](../adr/ADR-011.md).
@@ -90,6 +90,19 @@ Each phase is a small slice with its own tests. Do not start the next phase unti
 - **Delivered:** [ADR-017](../adr/ADR-017.md); `IVR_STT_SCRIPT`; `placeholder_turn` logs with `ttfb_ms`; `manual_verify_smoke.py --phase 7`.
 - **Tests:** pytest stays offline. You verify the checklist below on a handset.
 
+### Phase 7b — TTS voice matches call language
+
+- **Goal:** After language selection, spoken replies use a **voice for that language**. English-only SAPI must not read French (or other) catalog text. Architecture scales to any LLM language: add a Piper model, a Windows speech pack, or later a cloud TTS that takes `language` — do not hard-code en/fr in the engine.
+- **Delivered:** [ADR-018](../adr/ADR-018.md); `RoutedTextToSpeech`; SAPI `SelectVoice` from installed cultures; Piper per-language map (`IVR_PIPER_VOICES` / `IVR_PIPER_VOICE_DIR`); phrase cache plays English audio if there is no matching voice.
+- **Tests:** `tests/ivr/pytest/test_tts_routing.py`; English-only TTS must not synth French copy (`test_phrase_cache.py`).
+- **Depends on:** Phase 7.
+- **Done when:** pytest green; live call: pick French → either real French speech **or** clear English (not English-accented French). Startup log `TTS spoken languages=…` lists what this machine can actually speak.
+- **How to hear French (or any other language) on this PC:**
+  1. **Windows:** Settings → Time & language → Language & region → add the language → speech / TTS voice, **or**
+  2. **Piper:** download a voice `.onnx` whose name starts with the locale (`fr_FR-…`), set `IVR_PIPER_VOICE_DIR` or `IVR_PIPER_VOICES`, restart, delete old `.cache/ivr-phrases` files for that language if they were built with the wrong voice.
+  3. **Later:** one cloud TTS backend for many locales (same `synthesize(text, language)` interface).
+
+
 ---
 
 ## Notes for a later production / private path (optimize-for-B)
@@ -118,6 +131,7 @@ Not in this branch’s demo path, but keep in mind:
 | [ADR-015](../adr/ADR-015.md) | Placeholder turn engine (templated intents) | Phase 5 speech_end → canned reply |
 | [ADR-016](../adr/ADR-016.md) | Handoff to placeholder turns on the Media Stream | Phase 6 fake Twilio wiring |
 | [ADR-017](../adr/ADR-017.md) | Live smoke for canned TTFB (scripted STT) | Phase 7 handset checklist |
+| [ADR-018](../adr/ADR-018.md) | Match TTS voice to call language | Phase 7b; no cross-language voices |
 | [ADR-003](../adr/ADR-003.md) | 8 kHz μ-law wire format | Unchanged |
 | [ADR-004](../adr/ADR-004.md) | Energy VAD `speech_end` | Clock start |
 | [ADR-005](../adr/ADR-005.md) | TTS + burst playback | Playback; phrase cache will extend this |
@@ -136,12 +150,13 @@ Not in this branch’s demo path, but keep in mind:
 | Streaming STT | `services/ivr/streaming_stt.py` |
 | Placeholder turns | `services/ivr/placeholder_intents.py`, `services/ivr/turn_engine.py` |
 | Media-stream handoff | `app/api/ivr.py`, `services/ivr/turn_store.py` |
-| Live smoke | `tests/ivr/manual/manual_verify_smoke.py --phase 7` |
-| Pytest | `tests/ivr/pytest/test_ttfb.py`, `test_phrase_cache.py`, `test_streaming_tts.py`, `test_streaming_stt.py`, `test_turn_engine.py`, `test_media_stream_turns.py` |
+| TTS routing | `services/ivr/tts.py`, `services/ivr/tts_lang.py` |
+| Live smoke | `tests/ivr/manual/manual_verify_smoke.py --phase 7` / `--phase 7b` |
+| Pytest | `tests/ivr/pytest/test_ttfb.py`, `test_phrase_cache.py`, `test_streaming_tts.py`, `test_streaming_stt.py`, `test_turn_engine.py`, `test_media_stream_turns.py`, `test_tts_routing.py` |
 
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/ivr/pytest/test_ttfb.py tests/ivr/pytest/test_phrase_cache.py tests/ivr/pytest/test_streaming_tts.py tests/ivr/pytest/test_streaming_stt.py tests/ivr/pytest/test_turn_engine.py tests/ivr/pytest/test_media_stream_turns.py tests/ivr/pytest/test_media_stream_language.py -q
-.\venv\Scripts\python.exe tests\ivr\manual\manual_verify_smoke.py --phase 7
+.\venv\Scripts\python.exe -m pytest tests/ivr/pytest/test_ttfb.py tests/ivr/pytest/test_phrase_cache.py tests/ivr/pytest/test_streaming_tts.py tests/ivr/pytest/test_streaming_stt.py tests/ivr/pytest/test_turn_engine.py tests/ivr/pytest/test_media_stream_turns.py tests/ivr/pytest/test_media_stream_language.py tests/ivr/pytest/test_tts_routing.py tests/ivr/pytest/test_tts.py -q
+.\venv\Scripts\python.exe tests\ivr\manual\manual_verify_smoke.py --phase 7b
 ```
 
 ---
@@ -160,7 +175,9 @@ IVR_PLAYBACK_REALTIME=false
 IVR_STT_SCRIPT=balance,goodbye
 ```
 
-Keep your existing language-selection settings (Phase 9 fixed English **or** Phase 10 SpeechBrain). Windows SAPI is English-only; use Piper if you want spoken **French** phrases.
+Keep your existing language-selection settings (Phase 9 fixed English **or** Phase 10 SpeechBrain).
+
+After Phase 7b, Windows SAPI only speaks languages that have an installed speech pack. Without a French voice, a French selection plays **English** lines (intelligible), not French words in an English accent.
 
 ### Run
 
@@ -181,5 +198,16 @@ Keep your existing language-selection settings (Phase 9 fixed English **or** Pha
 6. Optional second call: French catalog if TTS can speak `fr`; otherwise English is enough for this branch
 7. Hang up → `STOP` / WebSocket closed, no crash traceback spam
 
-**Useful logs:** `incoming_call`, `Playing prompt`, `language_selected`, `IVR phrase cache warmed`, `placeholder_turn`, `Twilio Media Stream STOP`.
+**Useful logs:** `incoming_call`, `Playing prompt`, `language_selected`, `TTS spoken languages`, `IVR phrase cache warmed`, `placeholder_turn`, `Twilio Media Stream STOP`.
+
+---
+
+## Phase 7b live listen-check
+
+1. Restart the app after `.env` TTS changes. Delete `.cache/ivr-phrases` if you previously heard mangled French (old files were English-voiced French).
+2. Startup log `TTS spoken languages=` — if `fr` is missing, you will not hear French yet.
+3. Select French on the call:
+   - **No French voice:** menu and replies are clear English.
+   - **French SAPI pack or Piper `fr_*.onnx`:** menu and replies are French, spoken as French.
+4. Add another LLM language the same way: a Piper file named `{locale}-….onnx` or a Windows voice for that language, then add catalog text later.
 

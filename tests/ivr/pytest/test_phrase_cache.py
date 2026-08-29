@@ -56,6 +56,22 @@ async def test_get_ready_falls_back_to_english_when_language_missing(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_warmup_skips_languages_tts_cannot_speak(tmp_path):
+    class EnglishOnly(CountingTone):
+        def supports_language(self, language: str) -> bool:
+            return language.lower().startswith("en")
+
+    tts = EnglishOnly()
+    cache = PhraseAudioCache(tts, cache_dir=tmp_path)
+    warmed = await cache.warmup()
+    assert warmed == len(cache.catalog.ids)
+    assert cache.is_ready(MAIN_MENU, "en")
+    # French text is not spoken with an English voice; the English recording plays instead.
+    assert cache.get_ready(MAIN_MENU, "fr") == cache.get_ready(MAIN_MENU, "en")
+    assert cache.play_language(MAIN_MENU, "fr") == "en"
+
+
+@pytest.mark.asyncio
 async def test_warmup_then_get_ready_does_not_call_tts(tmp_path):
     tts = CountingTone()
     cache = PhraseAudioCache(tts, cache_dir=tmp_path)
@@ -91,20 +107,6 @@ async def test_get_fills_once_then_memory_and_disk_hit(tmp_path):
     assert from_disk == first
     assert tts_other.calls == 0
     assert reloaded.get_ready(GOODBYE, "en") == first
-
-
-@pytest.mark.asyncio
-async def test_warmup_skips_languages_tts_cannot_speak(tmp_path):
-    class EnglishOnly(CountingTone):
-        def supports_language(self, language: str) -> bool:
-            return language.lower().startswith("en")
-
-    tts = EnglishOnly()
-    cache = PhraseAudioCache(tts, cache_dir=tmp_path)
-    warmed = await cache.warmup()
-    assert warmed == len(cache.catalog.ids)
-    assert cache.is_ready(MAIN_MENU, "en")
-    assert not cache.is_ready(MAIN_MENU, "fr")
 
 
 @pytest.mark.asyncio

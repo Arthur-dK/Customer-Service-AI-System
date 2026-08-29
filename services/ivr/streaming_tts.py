@@ -102,9 +102,9 @@ async def stream_ready_phrase(
     fallback: StreamingTextToSpeech | None = None,
 ) -> AsyncIterator[bytes]:
     """Stream a warmed catalog phrase. Optional fallback synthesizes if not ready."""
-    play_lang = cache.catalog.resolve_language(phrase_id, language)
+    play_lang = cache.play_language(phrase_id, language)
     try:
-        mulaw = cache.get_ready(phrase_id, play_lang)
+        mulaw = cache.get_ready(phrase_id, language)
     except PhraseNotReadyError:
         if fallback is None:
             raise

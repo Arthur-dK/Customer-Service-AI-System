@@ -2,10 +2,12 @@
 Readiness check for IVR live-call profiles.
 
 Does not place a call. Default checks Phase 10 (SpeechBrain). Use --phase 7
-for FEAT-03 canned-reply smoke, or --phase 9 for the fixed-LID profile.
+for FEAT-03 canned-reply smoke, --phase 7b for TTS voice matching, or --phase 9
+for the fixed-LID profile.
 
 Usage (from repo root):
   .\\venv\\Scripts\\python.exe tests\\ivr\\manual\\manual_verify_smoke.py --phase 7
+  .\\venv\\Scripts\\python.exe tests\\ivr\\manual\\manual_verify_smoke.py --phase 7b
   .\\venv\\Scripts\\python.exe tests\\ivr\\manual\\manual_verify_smoke.py --phase 9
 """
 
@@ -30,9 +32,10 @@ from services.ivr.lid import (  # noqa: E402
 from services.ivr.streaming_stt import parse_stt_script  # noqa: E402
 from services.ivr.tts import (  # noqa: E402
     CachedTextToSpeech,
+    RoutedTextToSpeech,
     ToneTextToSpeech,
-    WindowsSapiTextToSpeech,
     build_default_tts,
+    list_spoken_languages,
 )
 
 
@@ -45,21 +48,27 @@ def _ok(label: str, condition: bool, detail: str = "") -> bool:
 
 def _tts_backend_name(tts: object) -> str:
     if isinstance(tts, CachedTextToSpeech):
-        return f"Cached({type(tts.inner).__name__})"
+        return f"Cached({_tts_backend_name(tts.inner)})"
+    if isinstance(tts, RoutedTextToSpeech):
+        inner = ", ".join(type(backend).__name__ for backend in tts.backends)
+        return f"Routed({inner})"
     return type(tts).__name__
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="IVR live-call profile readiness")
-    parser.add_argument("--phase", choices=("7", "9", "10"), default="10")
+    parser.add_argument("--phase", choices=("7", "7b", "9", "10"), default="10")
     args = parser.parse_args()
-    phase = int(args.phase)
+    phase_label = args.phase
+    phase = 7 if phase_label in ("7", "7b") else int(phase_label)
 
-    print(f"Phase {phase} live profile readiness\n")
+    print(f"Phase {phase_label} live profile readiness\n")
 
     tts = build_default_tts(
         piper_model_path=settings.IVR_PIPER_MODEL_PATH,
         piper_bin=settings.IVR_PIPER_BIN,
+        piper_voices=settings.IVR_PIPER_VOICES,
+        piper_voice_dir=settings.IVR_PIPER_VOICE_DIR,
     )
     lid = build_default_lid(
         prefer_speechbrain=settings.IVR_USE_SPEECHBRAIN_LID,
@@ -148,6 +157,7 @@ def main() -> int:
     print("\nBackends")
     tts_name = _tts_backend_name(tts)
     inner = tts.inner if isinstance(tts, CachedTextToSpeech) else tts
+    spoken = list_spoken_languages(tts)
     if isinstance(inner, ToneTextToSpeech):
         checks.append(
             _ok(
@@ -157,10 +167,14 @@ def main() -> int:
             )
         )
     else:
-        detail = tts_name
-        if isinstance(inner, WindowsSapiTextToSpeech):
-            detail += " (English-capable SAPI)"
-        checks.append(_ok("TTS is spoken (not tone stub)", True, detail))
+        checks.append(
+            _ok("TTS is spoken (not tone stub)", True, f"{tts_name} languages={spoken}")
+        )
+    if phase_label == "7b" and "*" not in spoken and "fr" not in spoken:
+        print(
+            "  [WARN] No French voice — selecting French plays English until you add "
+            "a Windows French speech pack or Piper fr_*.onnx"
+        )
 
     lid_name = type(lid).__name__
     if phase == 9:
@@ -199,9 +213,13 @@ def main() -> int:
         print("  4. Speak, then pause - hear canned reply (balance if IVR_STT_SCRIPT=balance,")
         print("     else 'did not catch that'). Should start quickly after you stop talking.")
         print("  5. Log: placeholder_turn ... ttfb_ms=... (official clock; ear delay can be higher)")
-        print("  6. Optional 2nd call: French phrases if TTS can speak fr (Piper), else English only")
+        print("  6. Optional 2nd call: French if TTS spoken languages includes fr")
         print("  7. Hangup -> STOP, no crash spam")
-        print("\nRunbook: docs/features/FEAT-03.md (Phase 7 live smoke)")
+        if phase_label == "7b":
+            print("  8. French selection: real French speech OR clear English — never English-accented French")
+            print("\nRunbook: docs/features/FEAT-03.md (Phase 7b TTS voice matching)")
+        else:
+            print("\nRunbook: docs/features/FEAT-03.md (Phase 7 live smoke)")
     elif phase == 9:
         print("  1. Trial 'press any key' if trial account — expected")
         print("  2. Log: Playing prompt … bytes=… (bytes > 0)")
@@ -218,7 +236,7 @@ def main() -> int:
         print("\nDefinitive runbook: docs/features/FEAT-02.md (Phase 10 live SpeechBrain)")
 
     if all(checks):
-        print(f"\nPhase {phase} app profile ready. Configure Twilio + ngrok, then dial.")
+        print(f"\nPhase {phase_label} app profile ready. Configure Twilio + ngrok, then dial.")
         return 0
 
     print("\nNot ready: fix FAIL items, then re-run this script.")

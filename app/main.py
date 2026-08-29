@@ -8,7 +8,7 @@ from app.api import email, health, ivr, sms
 from app.deps import get_lid, get_phrase_cache, get_tts
 from core.config import settings
 from services.ivr.streaming_stt import parse_stt_script
-from services.ivr.tts import warm_language_selection_prompts
+from services.ivr.tts import list_spoken_languages, warm_language_selection_prompts
 
 logging.basicConfig(
     level=logging.INFO if settings.DEBUG else logging.WARNING,
@@ -24,6 +24,7 @@ async def lifespan(_app: FastAPI):
         await warm_language_selection_prompts(get_tts())
     except Exception:
         log.exception("TTS prompt warmup failed; first call may be slow")
+    log.info("TTS spoken languages=%s", list_spoken_languages(get_tts()))
 
     try:
         warmed = await get_phrase_cache().warmup()
