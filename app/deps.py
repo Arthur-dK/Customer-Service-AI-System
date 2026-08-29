@@ -5,6 +5,7 @@ from functools import lru_cache
 from core.config import settings
 from services.ivr.lid import LanguageIdentifier, build_default_lid
 from services.ivr.phrase_cache import PhraseAudioCache
+from services.ivr.streaming_stt import StreamingSpeechToText, build_default_streaming_stt
 from services.ivr.streaming_tts import StreamingTextToSpeech, build_default_streaming_tts
 from services.ivr.tts import TextToSpeech, build_default_tts
 from services.ivr.vad import VadConfig
@@ -39,3 +40,8 @@ def get_phrase_cache() -> PhraseAudioCache:
 @lru_cache(maxsize=1)
 def get_streaming_tts() -> StreamingTextToSpeech:
     return build_default_streaming_tts(get_tts())
+
+
+@lru_cache(maxsize=1)
+def get_streaming_stt() -> StreamingSpeechToText:
+    return build_default_streaming_stt()
