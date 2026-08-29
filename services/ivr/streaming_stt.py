@@ -45,7 +45,8 @@ class ScriptedStreamingSpeechToText:
     """Free CI/demo stub: ignores audio; emits queued finals on ``finish``."""
 
     def __init__(self, finals: list[str] | None = None) -> None:
-        self._queued = list(finals if finals is not None else ())
+        self._script = list(finals if finals is not None else ())
+        self._queued = list(self._script)
         self._language = "en"
         self._bytes_fed = 0
 
@@ -59,6 +60,7 @@ class ScriptedStreamingSpeechToText:
     async def start(self, *, language: str) -> None:
         self._language = language.lower()
         self._bytes_fed = 0
+        self._queued = list(self._script)
 
     async def feed_mulaw(self, chunk: bytes) -> list[Transcript]:
         self._bytes_fed += len(chunk)
@@ -72,6 +74,14 @@ class ScriptedStreamingSpeechToText:
 
     async def aclose(self) -> None:
         self._queued.clear()
+        # Keep ``_script`` so a later ``start()`` can refill the demo queue.
+
+
+def parse_stt_script(raw: str | None) -> list[str]:
+    """Split ``IVR_STT_SCRIPT`` into queued finals (no network)."""
+    if not raw or not raw.strip():
+        return []
+    return [part.strip() for part in raw.split(",") if part.strip()]
 
 
 def build_default_streaming_stt(

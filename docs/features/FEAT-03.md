@@ -5,7 +5,7 @@
 | **Feature ID** | FEAT-03 |
 | **Name** | Low-latency STT/TTS plumbing + Time-To-First-Audio-Byte |
 | **Branch** | `feat/ivr-latency-audio-pipeline` |
-| **Status** | In progress (Phase 6) |
+| **Status** | Implemented (Phases 1–7) |
 | **Target** | After the caller stops talking, canned reply audio starts sending in under ~0.5s |
 
 This is the process/runbook for the latency pipeline. Language selection remains [FEAT-02](FEAT-02.md). Architectural decisions for this feature start at [ADR-011](../adr/ADR-011.md).
@@ -77,7 +77,7 @@ Each phase is a small slice with its own tests. Do not start the next phase unti
 - **Tests:** `tests/ivr/pytest/test_turn_engine.py` — English + French; unknown → error phrase; median canned TTFB ≤ 500 ms; no TTS on warmed hot path.
 - **Done when:** pytest for the turn engine passes. Still not on a live Twilio call.
 
-### Phase 6 — Fake Twilio media-stream wiring *(this phase)*
+### Phase 6 — Fake Twilio media-stream wiring
 
 - **Goal:** Same turn engine on inbound/outbound queues like FEAT-02’s fake stream.
 - **Delivered:** Handoff in `app/api/ivr.py` after language selection; `services/ivr/turn_store.py`; [ADR-016](../adr/ADR-016.md).
@@ -87,7 +87,8 @@ Each phase is a small slice with its own tests. Do not start the next phase unti
 ### Phase 7 — Live Twilio smoke (English + 1–2 languages)
 
 - **Goal:** Hear canned replies start quickly on a real phone. Official clock remains the harness; the call is a sanity check.
-- **Tests:** smoke checklist in this doc (written in Phase 7).
+- **Delivered:** [ADR-017](../adr/ADR-017.md); `IVR_STT_SCRIPT`; `placeholder_turn` logs with `ttfb_ms`; `manual_verify_smoke.py --phase 7`.
+- **Tests:** pytest stays offline. You verify the checklist below on a handset.
 
 ---
 
@@ -116,16 +117,15 @@ Not in this branch’s demo path, but keep in mind:
 | [ADR-014](../adr/ADR-014.md) | Streaming STT protocol with local VAD utterance bounds | Phase 4 stub + speech_end |
 | [ADR-015](../adr/ADR-015.md) | Placeholder turn engine (templated intents) | Phase 5 speech_end → canned reply |
 | [ADR-016](../adr/ADR-016.md) | Handoff to placeholder turns on the Media Stream | Phase 6 fake Twilio wiring |
+| [ADR-017](../adr/ADR-017.md) | Live smoke for canned TTFB (scripted STT) | Phase 7 handset checklist |
 | [ADR-003](../adr/ADR-003.md) | 8 kHz μ-law wire format | Unchanged |
 | [ADR-004](../adr/ADR-004.md) | Energy VAD `speech_end` | Clock start |
 | [ADR-005](../adr/ADR-005.md) | TTS + burst playback | Playback; phrase cache will extend this |
 | [ADR-010](../adr/ADR-010.md) | Offline before live | Same build order |
 
-Later phases will add an ADR when live smoke lands.
-
 ---
 
-## Key code (Phases 1–6)
+## Key code (Phases 1–7)
 
 | Area | Path |
 |------|------|
@@ -136,8 +136,50 @@ Later phases will add an ADR when live smoke lands.
 | Streaming STT | `services/ivr/streaming_stt.py` |
 | Placeholder turns | `services/ivr/placeholder_intents.py`, `services/ivr/turn_engine.py` |
 | Media-stream handoff | `app/api/ivr.py`, `services/ivr/turn_store.py` |
+| Live smoke | `tests/ivr/manual/manual_verify_smoke.py --phase 7` |
 | Pytest | `tests/ivr/pytest/test_ttfb.py`, `test_phrase_cache.py`, `test_streaming_tts.py`, `test_streaming_stt.py`, `test_turn_engine.py`, `test_media_stream_turns.py` |
 
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/ivr/pytest/test_ttfb.py tests/ivr/pytest/test_phrase_cache.py tests/ivr/pytest/test_streaming_tts.py tests/ivr/pytest/test_streaming_stt.py tests/ivr/pytest/test_turn_engine.py tests/ivr/pytest/test_media_stream_turns.py tests/ivr/pytest/test_media_stream_language.py -q
+.\venv\Scripts\python.exe tests\ivr\manual\manual_verify_smoke.py --phase 7
 ```
+
+---
+
+## Phase 7 live smoke runbook
+
+Prove canned replies on a **real phone**. The official 0.5s clock is the server log (`placeholder_turn … ttfb_ms=`), not how long the network takes to reach your ear.
+
+The speech-to-text stub still **does not understand** what you say. Set `IVR_STT_SCRIPT` so each pause after speech plays the next canned line.
+
+### Env (`.env`)
+
+```env
+DEBUG=true
+IVR_PLAYBACK_REALTIME=false
+IVR_STT_SCRIPT=balance,goodbye
+```
+
+Keep your existing language-selection settings (Phase 9 fixed English **or** Phase 10 SpeechBrain). Windows SAPI is English-only; use Piper if you want spoken **French** phrases.
+
+### Run
+
+1. `.\venv\Scripts\python.exe tests\ivr\manual\manual_verify_smoke.py --phase 7`
+2. `.\venv\Scripts\uvicorn.exe app.main:app --host 0.0.0.0 --port 8000`
+3. Expose HTTPS/WSS (ngrok); Twilio Voice webhook → `https://<public-host>/voice/incoming`
+4. Call the number.
+
+### Pass checklist (all must be true)
+
+1. Trial “press any key” gate (if trial) — expected
+2. Hear language-selection prompt; select by **DTMF** or speech
+3. Log: `language_selected` — then you **hear** the task menu
+4. Speak, then pause. Hear a canned reply:
+   - with `IVR_STT_SCRIPT=balance` → fake-balance line
+   - with empty script → “did not catch that”
+5. Log: `placeholder_turn phrase=… ttfb_ms=…` (typical `ttfb_ms` ≤ 500)
+6. Optional second call: French catalog if TTS can speak `fr`; otherwise English is enough for this branch
+7. Hang up → `STOP` / WebSocket closed, no crash traceback spam
+
+**Useful logs:** `incoming_call`, `Playing prompt`, `language_selected`, `IVR phrase cache warmed`, `placeholder_turn`, `Twilio Media Stream STOP`.
+

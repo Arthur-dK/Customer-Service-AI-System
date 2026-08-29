@@ -6,6 +6,7 @@ Language is already known. Replies are catalog buffers, not live card data or an
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -16,6 +17,8 @@ from services.ivr.streaming_stt import StreamingSpeechToText, Transcript, feed_u
 from services.ivr.streaming_tts import StreamingTextToSpeech, enqueue_tts_stream, stream_ready_phrase
 from services.ivr.ttfb import ReplyKind, TtfbHarness
 from services.ivr.vad import EnergyVad, VadConfig
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -185,6 +188,16 @@ class PlaceholderTurnEngine:
             outbound,
             measure_ttfb=True,
             cancel=cancel,
+        )
+        sample = self.ttfb.samples[-1] if self.ttfb.samples else None
+        logger.info(
+            "placeholder_turn language=%s phrase=%s transcript=%r chunks=%s ttfb_ms=%s within_budget=%s",
+            self.language,
+            phrase_id,
+            transcript.text,
+            sent,
+            None if sample is None else round(sample.ttfb_ms, 1),
+            None if sample is None else sample.within_budget,
         )
         return TurnResult(
             transcript=transcript.text,

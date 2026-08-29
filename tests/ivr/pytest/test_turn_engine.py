@@ -160,3 +160,19 @@ async def test_inbound_queue_turn_matches_blob_path(tmp_path):
     assert result.chunks_sent >= 1
     assert engine.ttfb.samples[0].within_budget is True
 
+
+@pytest.mark.asyncio
+async def test_unsupported_lid_language_plays_english_menu(tmp_path):
+    tts = CountingTone()
+    cache = PhraseAudioCache(tts, cache_dir=tmp_path)
+    await cache.warmup(languages=("en",))
+    engine = PlaceholderTurnEngine(
+        language="kk",
+        cache=cache,
+        stt=ScriptedStreamingSpeechToText(finals=["balance"]),
+    )
+    outbound: asyncio.Queue[str] = asyncio.Queue()
+    sent = await engine.play_phrase(MAIN_MENU, outbound)
+    assert sent >= 1
+    assert outbound.qsize() == sent
+

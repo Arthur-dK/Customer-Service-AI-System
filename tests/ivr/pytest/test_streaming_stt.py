@@ -96,6 +96,23 @@ async def test_feed_until_speech_end_does_not_finish_without_utterance():
     assert leftover.text == "balance"
 
 
+def test_parse_stt_script_splits_and_strips():
+    from services.ivr.streaming_stt import parse_stt_script
+
+    assert parse_stt_script(None) == []
+    assert parse_stt_script("  ") == []
+    assert parse_stt_script("balance, goodbye, PIN") == ["balance", "goodbye", "PIN"]
+
+
+@pytest.mark.asyncio
+async def test_start_refills_script_for_a_new_call():
+    stt = ScriptedStreamingSpeechToText(finals=["balance"])
+    await stt.start(language="en")
+    assert (await stt.finish()).text == "balance"
+    await stt.start(language="en")
+    assert (await stt.finish()).text == "balance"
+
+
 def test_build_default_streaming_stt_is_scripted_stub():
     stt = build_default_streaming_stt(finals=["block card"])
     assert isinstance(stt, ScriptedStreamingSpeechToText)

@@ -1,11 +1,11 @@
 """
-Readiness check for IVR language-selection live profiles.
+Readiness check for IVR live-call profiles.
 
-Does not place a call. Default checks Phase 10 (SpeechBrain). Use --phase 9
-for the fixed-LID smoke profile.
+Does not place a call. Default checks Phase 10 (SpeechBrain). Use --phase 7
+for FEAT-03 canned-reply smoke, or --phase 9 for the fixed-LID profile.
 
 Usage (from repo root):
-  .\\venv\\Scripts\\python.exe tests\\ivr\\manual\\manual_verify_smoke.py
+  .\\venv\\Scripts\\python.exe tests\\ivr\\manual\\manual_verify_smoke.py --phase 7
   .\\venv\\Scripts\\python.exe tests\\ivr\\manual\\manual_verify_smoke.py --phase 9
 """
 
@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from core.language.phrases import MAIN_MENU, PLACEHOLDER_BALANCE, load_phrase_catalog  # noqa: E402
 from core.config import settings  # noqa: E402
 from services.ivr.lid import (  # noqa: E402
     FixedLanguageIdentifier,
@@ -26,6 +27,7 @@ from services.ivr.lid import (  # noqa: E402
     build_default_lid,
     speechbrain_available,
 )
+from services.ivr.streaming_stt import parse_stt_script  # noqa: E402
 from services.ivr.tts import (  # noqa: E402
     CachedTextToSpeech,
     ToneTextToSpeech,
@@ -49,7 +51,7 @@ def _tts_backend_name(tts: object) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="IVR live-call profile readiness")
-    parser.add_argument("--phase", choices=("9", "10"), default="10")
+    parser.add_argument("--phase", choices=("7", "9", "10"), default="10")
     args = parser.parse_args()
     phase = int(args.phase)
 
@@ -82,7 +84,7 @@ def main() -> int:
                 f"IVR_LID_FORCE_LANGUAGE={settings.IVR_LID_FORCE_LANGUAGE!r}",
             )
         )
-    else:
+    elif phase == 10:
         checks.append(
             _ok(
                 "SpeechBrain LID preferred",
@@ -104,6 +106,29 @@ def main() -> int:
                 "install requirements-ivr-lid.txt" if not speechbrain_available() else "ok",
             )
         )
+    else:
+        catalog = load_phrase_catalog()
+        checks.append(
+            _ok(
+                "English canned menu + balance",
+                catalog.has(MAIN_MENU, "en") and catalog.has(PLACEHOLDER_BALANCE, "en"),
+            )
+        )
+        checks.append(
+            _ok(
+                "French canned menu + balance (2nd language)",
+                catalog.has(MAIN_MENU, "fr") and catalog.has(PLACEHOLDER_BALANCE, "fr"),
+            )
+        )
+        script = parse_stt_script(settings.IVR_STT_SCRIPT)
+        if script:
+            checks.append(_ok("IVR_STT_SCRIPT queued for live turns", True, ",".join(script)))
+        else:
+            print(
+                "  [WARN] IVR_STT_SCRIPT empty — after the menu, speech plays "
+                "'did not catch that' (still a canned TTFB check). "
+                "Set IVR_STT_SCRIPT=balance to hear the fake-balance line."
+            )
 
     checks.append(
         _ok(
@@ -140,7 +165,7 @@ def main() -> int:
     lid_name = type(lid).__name__
     if phase == 9:
         checks.append(_ok("LID is fixed override", isinstance(lid, FixedLanguageIdentifier), lid_name))
-    else:
+    elif phase == 10:
         checks.append(
             _ok(
                 "LID is SpeechBrain",
@@ -153,6 +178,8 @@ def main() -> int:
                 ),
             )
         )
+    else:
+        checks.append(_ok("LID backend loaded", True, lid_name))
 
     twilio_configured = (
         settings.TWILIO_ACCOUNT_SID not in ("", "mock_sid")
@@ -165,19 +192,29 @@ def main() -> int:
         print("  [WARN] TWILIO_* still mock/empty — set real values in .env before dialing")
 
     print("\nLive checklist (you verify on the call)")
-    if phase == 9:
+    if phase == 7:
+        print("  1. Trial 'press any key' if trial account — expected")
+        print("  2. Hear language-selection prompt, then select (DTMF or speech)")
+        print("  3. Log: language_selected ... then hear the task menu")
+        print("  4. Speak, then pause - hear canned reply (balance if IVR_STT_SCRIPT=balance,")
+        print("     else 'did not catch that'). Should start quickly after you stop talking.")
+        print("  5. Log: placeholder_turn ... ttfb_ms=... (official clock; ear delay can be higher)")
+        print("  6. Optional 2nd call: French phrases if TTS can speak fr (Piper), else English only")
+        print("  7. Hangup -> STOP, no crash spam")
+        print("\nRunbook: docs/features/FEAT-03.md (Phase 7 live smoke)")
+    elif phase == 9:
         print("  1. Trial 'press any key' if trial account — expected")
         print("  2. Log: Playing prompt … bytes=… (bytes > 0)")
         print("  3. Hear spoken prompt (not silence / not only beeps)")
-        print("  4. Speak or press digit → language_selected / outcome=selected")
-        print("  5. Hangup → STOP, no crash spam")
+        print("  4. Speak or press digit -> language_selected / outcome=selected")
+        print("  5. Hangup -> STOP, no crash spam")
         print("\nRunbook: docs/features/FEAT-02.md (Phase 9 live smoke)")
     else:
         print("  1. Prompt plays (English TTS is fine for the prompt only)")
         print("  2. YOU speak French (or another language) on the handset — not SAPI")
         print("  3. Log: language_selected language=<spoken> with SpeechBrain (not fixed)")
         print("  4. Optional: DTMF still selects if speech fails")
-        print("  5. Hangup → STOP, no crash spam")
+        print("  5. Hangup -> STOP, no crash spam")
         print("\nDefinitive runbook: docs/features/FEAT-02.md (Phase 10 live SpeechBrain)")
 
     if all(checks):

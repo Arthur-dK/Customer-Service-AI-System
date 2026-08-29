@@ -42,8 +42,17 @@ def test_unknown_phrase_id_raises():
     catalog = load_phrase_catalog()
     with pytest.raises(UnknownPhraseError):
         catalog.text("not_a_real_phrase", "en")
-    with pytest.raises(UnknownPhraseError):
-        catalog.text(MAIN_MENU, "zh")
+    assert catalog.resolve_language(MAIN_MENU, "kk") == "en"
+    assert catalog.text(MAIN_MENU, "zh") == catalog.text(MAIN_MENU, "en", strict=True)
+
+
+@pytest.mark.asyncio
+async def test_get_ready_falls_back_to_english_when_language_missing(tmp_path):
+    cache = PhraseAudioCache(CountingTone(), cache_dir=tmp_path)
+    await cache.warmup(languages=("en",))
+    kk_menu = cache.get_ready(MAIN_MENU, "kk")
+    assert kk_menu == cache.get_ready(MAIN_MENU, "en")
+    assert cache.is_ready(MAIN_MENU, "kk") is True
 
 
 @pytest.mark.asyncio

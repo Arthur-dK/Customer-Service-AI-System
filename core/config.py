@@ -33,5 +33,9 @@ class Settings(BaseSettings):
     IVR_PLAYBACK_REALTIME: bool = False
     IVR_VAD_RMS_THRESHOLD: float = 250.0
 
+    # Comma-separated stub transcripts for live smoke (e.g. "balance,goodbye").
+    # Empty = each utterance maps to did_not_catch until a real STT is plugged in.
+    IVR_STT_SCRIPT: str | None = None
+
 
 settings = Settings()
