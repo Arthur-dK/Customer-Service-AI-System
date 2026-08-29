@@ -291,44 +291,6 @@ class SpeechBrainLanguageIdentifier:
             if not chosen:
                 chosen, chosen_conf, remapped_from = language, confidence, None
 
-            # #region agent log
-            try:
-                import json
-                from pathlib import Path
-
-                path = Path(__file__).resolve().parents[2] / "debug-6ce0b3.log"
-                with path.open("a", encoding="utf-8") as fh:
-                    fh.write(
-                        json.dumps(
-                            {
-                                "sessionId": "6ce0b3",
-                                "runId": "post-fix",
-                                "hypothesisId": "D,E",
-                                "location": "lid.py:SpeechBrain.identify",
-                                "message": "lid_topk",
-                                "data": {
-                                    "duration_ms": int(
-                                        1000 * len(waveform) / SPEECHBRAIN_TARGET_RATE
-                                    ),
-                                    "input_sample_rate": sample_rate,
-                                    "pcm16_bytes": len(pcm16_audio),
-                                    "raw_top_language": language,
-                                    "raw_confidence": confidence,
-                                    "chosen_language": chosen,
-                                    "chosen_confidence": chosen_conf,
-                                    "remapped_from": remapped_from,
-                                    "raw_label": str(label),
-                                    "top_labels": top_labels,
-                                    "top_probs": [round(float(p), 4) for p in top_probs],
-                                },
-                                "timestamp": int(time.time() * 1000),
-                            }
-                        )
-                        + "\n"
-                    )
-            except Exception:
-                pass
-            # #endregion
             return chosen, chosen_conf, remapped_from, top_labels, top_probs, str(label)
 
         language, confidence, remapped_from, _top_labels, _top_probs, _raw = await asyncio.to_thread(

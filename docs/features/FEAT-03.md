@@ -5,7 +5,7 @@
 | **Feature ID** | FEAT-03 |
 | **Name** | Low-latency STT/TTS plumbing + Time-To-First-Audio-Byte |
 | **Branch** | `feat/ivr-latency-audio-pipeline` |
-| **Status** | In progress (Phase 4) |
+| **Status** | In progress (Phase 6) |
 | **Target** | After the caller stops talking, canned reply audio starts sending in under ~0.5s |
 
 This is the process/runbook for the latency pipeline. Language selection remains [FEAT-02](FEAT-02.md). Architectural decisions for this feature start at [ADR-011](../adr/ADR-011.md).
@@ -62,7 +62,7 @@ Each phase is a small slice with its own tests. Do not start the next phase unti
 - **Later swap:** paid streaming TTS (e.g. Cartesia) implements the same protocol. In-house: stream from a local engine on that protocol.
 - **Done when:** pytest for streaming TTS passes. Not yet wired into live Twilio playback.
 
-### Phase 4 — Streaming STT interface + free stub *(this phase)*
+### Phase 4 — Streaming STT interface + free stub
 
 - **Goal:** Inbound audio can be transcribed through a **StreamingSTT** protocol. CI uses a stub (fixed phrases). Still use energy VAD for “caller stopped talking.”
 - **Delivered:** `services/ivr/streaming_stt.py`; [ADR-014](../adr/ADR-014.md). `ScriptedStreamingSpeechToText`; `feed_until_speech_end` ties VAD `speech_end` to TTFB start + `finish()`.
@@ -73,12 +73,16 @@ Each phase is a small slice with its own tests. Do not start the next phase unti
 ### Phase 5 — Simulated turn engine (placeholder tasks)
 
 - **Goal:** After language is already known: `speech_end` → stub transcript → canned phrase → stream first audio. Measure TTFB. Placeholder “tasks” (e.g. fake balance) are extra audio prompts, not real card APIs.
-- **Tests:** automated benchmark — median canned TTFB ≤ 500 ms with stubs.
+- **Delivered:** `services/ivr/placeholder_intents.py`, `services/ivr/turn_engine.py`; [ADR-015](../adr/ADR-015.md).
+- **Tests:** `tests/ivr/pytest/test_turn_engine.py` — English + French; unknown → error phrase; median canned TTFB ≤ 500 ms; no TTS on warmed hot path.
+- **Done when:** pytest for the turn engine passes. Still not on a live Twilio call.
 
-### Phase 6 — Fake Twilio media-stream wiring
+### Phase 6 — Fake Twilio media-stream wiring *(this phase)*
 
 - **Goal:** Same turn engine on inbound/outbound queues like FEAT-02’s fake stream.
-- **Tests:** pytest + optional `tests/ivr/manual/` script. Language selector unchanged except handing off after selection.
+- **Delivered:** Handoff in `app/api/ivr.py` after language selection; `services/ivr/turn_store.py`; [ADR-016](../adr/ADR-016.md).
+- **Tests:** `tests/ivr/pytest/test_media_stream_turns.py`; optional `manual_verify_media_stream.py --mode placeholder`.
+- **Done when:** pytest fake stream shows language select then a canned task reply. Live Twilio now also enters placeholder turns after selection (stub STT → “did not catch that” unless scripted).
 
 ### Phase 7 — Live Twilio smoke (English + 1–2 languages)
 
@@ -110,16 +114,18 @@ Not in this branch’s demo path, but keep in mind:
 | [ADR-012](../adr/ADR-012.md) | Phrase IDs and ready audio buffers | Phase 2 catalog + hot-path lookup |
 | [ADR-013](../adr/ADR-013.md) | Streaming TTS protocol (chunked μ-law) | Phase 3 stub + batch adapter |
 | [ADR-014](../adr/ADR-014.md) | Streaming STT protocol with local VAD utterance bounds | Phase 4 stub + speech_end |
+| [ADR-015](../adr/ADR-015.md) | Placeholder turn engine (templated intents) | Phase 5 speech_end → canned reply |
+| [ADR-016](../adr/ADR-016.md) | Handoff to placeholder turns on the Media Stream | Phase 6 fake Twilio wiring |
 | [ADR-003](../adr/ADR-003.md) | 8 kHz μ-law wire format | Unchanged |
 | [ADR-004](../adr/ADR-004.md) | Energy VAD `speech_end` | Clock start |
 | [ADR-005](../adr/ADR-005.md) | TTS + burst playback | Playback; phrase cache will extend this |
 | [ADR-010](../adr/ADR-010.md) | Offline before live | Same build order |
 
-Later phases will add ADRs when the simulated turn engine and live wiring land.
+Later phases will add an ADR when live smoke lands.
 
 ---
 
-## Key code (Phases 1–4)
+## Key code (Phases 1–6)
 
 | Area | Path |
 |------|------|
@@ -128,8 +134,10 @@ Later phases will add ADRs when the simulated turn engine and live wiring land.
 | Ready-audio cache | `services/ivr/phrase_cache.py` |
 | Streaming TTS | `services/ivr/streaming_tts.py` |
 | Streaming STT | `services/ivr/streaming_stt.py` |
-| Pytest | `tests/ivr/pytest/test_ttfb.py`, `test_phrase_cache.py`, `test_streaming_tts.py`, `test_streaming_stt.py` |
+| Placeholder turns | `services/ivr/placeholder_intents.py`, `services/ivr/turn_engine.py` |
+| Media-stream handoff | `app/api/ivr.py`, `services/ivr/turn_store.py` |
+| Pytest | `tests/ivr/pytest/test_ttfb.py`, `test_phrase_cache.py`, `test_streaming_tts.py`, `test_streaming_stt.py`, `test_turn_engine.py`, `test_media_stream_turns.py` |
 
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/ivr/pytest/test_ttfb.py tests/ivr/pytest/test_phrase_cache.py tests/ivr/pytest/test_streaming_tts.py tests/ivr/pytest/test_streaming_stt.py -q
+.\venv\Scripts\python.exe -m pytest tests/ivr/pytest/test_ttfb.py tests/ivr/pytest/test_phrase_cache.py tests/ivr/pytest/test_streaming_tts.py tests/ivr/pytest/test_streaming_stt.py tests/ivr/pytest/test_turn_engine.py tests/ivr/pytest/test_media_stream_turns.py tests/ivr/pytest/test_media_stream_language.py -q
 ```
