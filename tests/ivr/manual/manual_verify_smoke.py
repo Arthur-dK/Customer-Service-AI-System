@@ -2,12 +2,13 @@
 Readiness check for IVR live-call profiles.
 
 Does not place a call. Default checks Phase 10 (SpeechBrain). Use --phase 7
-for FEAT-03 canned-reply smoke, --phase 7b for TTS voice matching, or --phase 9
-for the fixed-LID profile.
+for FEAT-03 canned-reply smoke, --phase 7b for TTS voice matching, --phase 8
+for live grammar STT, or --phase 9 for the fixed-LID profile.
 
 Usage (from repo root):
   .\\venv\\Scripts\\python.exe tests\\ivr\\manual\\manual_verify_smoke.py --phase 7
   .\\venv\\Scripts\\python.exe tests\\ivr\\manual\\manual_verify_smoke.py --phase 7b
+  .\\venv\\Scripts\\python.exe tests\\ivr\\manual\\manual_verify_smoke.py --phase 8
   .\\venv\\Scripts\\python.exe tests\\ivr\\manual\\manual_verify_smoke.py --phase 9
 """
 
@@ -57,7 +58,7 @@ def _tts_backend_name(tts: object) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="IVR live-call profile readiness")
-    parser.add_argument("--phase", choices=("7", "7b", "9", "10"), default="10")
+    parser.add_argument("--phase", choices=("7", "7b", "8", "9", "10"), default="10")
     args = parser.parse_args()
     phase_label = args.phase
     phase = 7 if phase_label in ("7", "7b") else int(phase_label)
@@ -130,13 +131,29 @@ def main() -> int:
             )
         )
         script = parse_stt_script(settings.IVR_STT_SCRIPT)
-        if script:
+        if phase == 8:
+            checks.append(
+                _ok(
+                    "IVR_STT_BACKEND=sapi (hears balance/PIN/block/goodbye)",
+                    (settings.IVR_STT_BACKEND or "").strip().lower() == "sapi",
+                    f"IVR_STT_BACKEND={settings.IVR_STT_BACKEND!r}",
+                )
+            )
+            checks.append(
+                _ok(
+                    "Windows host for SAPI grammar STT",
+                    sys.platform.startswith("win"),
+                    sys.platform,
+                )
+            )
+        elif script:
             checks.append(_ok("IVR_STT_SCRIPT queued for live turns", True, ",".join(script)))
         else:
             print(
                 "  [WARN] IVR_STT_SCRIPT empty — after the menu, speech plays "
                 "'did not catch that' (still a canned TTFB check). "
-                "Set IVR_STT_SCRIPT=balance to hear the fake-balance line."
+                "Set IVR_STT_SCRIPT=balance to hear the fake-balance line, "
+                "or IVR_STT_BACKEND=sapi for Phase 8."
             )
 
     checks.append(
@@ -206,7 +223,16 @@ def main() -> int:
         print("  [WARN] TWILIO_* still mock/empty — set real values in .env before dialing")
 
     print("\nLive checklist (you verify on the call)")
-    if phase == 7:
+    if phase == 8:
+        print("  1. Trial 'press any key' if trial account — expected")
+        print("  2. Hear language-selection prompt, then select (DTMF or speech)")
+        print("  3. Log: language_selected ... then hear the task menu")
+        print("  4. Say 'balance' (or 'solde' in French), then pause")
+        print("  5. Hear the fake-balance line. Log: grammar_stt ... text='balance'")
+        print("  6. ttfb_ms may be over 500 (includes Windows recognition) — expected")
+        print("  7. Hangup -> STOP, no crash spam")
+        print("\nRunbook: docs/features/FEAT-03.md (Phase 8 live grammar STT)")
+    elif phase == 7:
         print("  1. Trial 'press any key' if trial account — expected")
         print("  2. Hear language-selection prompt, then select (DTMF or speech)")
         print("  3. Log: language_selected ... then hear the task menu")

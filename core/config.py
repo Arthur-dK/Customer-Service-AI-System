@@ -37,9 +37,11 @@ class Settings(BaseSettings):
     IVR_PLAYBACK_REALTIME: bool = False
     IVR_VAD_RMS_THRESHOLD: float = 250.0
 
-    # Comma-separated stub transcripts for live smoke (e.g. "balance,goodbye").
-    # Empty = each utterance maps to did_not_catch until a real STT is plugged in.
+# Comma-separated stub transcripts for live smoke (e.g. "balance,goodbye").
+# Ignored when IVR_STT_BACKEND=sapi.
     IVR_STT_SCRIPT: str | None = None
+    # scripted (default, CI / Phase 7) | sapi (Windows grammar — hears balance/PIN/block/goodbye)
+    IVR_STT_BACKEND: str = "scripted"
 
 
 settings = Settings()

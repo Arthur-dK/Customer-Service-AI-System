@@ -116,6 +116,8 @@ async def test_start_refills_script_for_a_new_call():
 def test_build_default_streaming_stt_is_scripted_stub():
     stt = build_default_streaming_stt(finals=["block card"])
     assert isinstance(stt, ScriptedStreamingSpeechToText)
+    default = build_default_streaming_stt()
+    assert isinstance(default, ScriptedStreamingSpeechToText)
 
 
 @pytest.mark.asyncio

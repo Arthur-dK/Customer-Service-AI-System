@@ -5,7 +5,7 @@
 | **Feature ID** | FEAT-03 |
 | **Name** | Low-latency STT/TTS plumbing + Time-To-First-Audio-Byte |
 | **Branch** | `feat/ivr-latency-audio-pipeline` |
-| **Status** | Implemented (Phases 1–7) + Phase 7b (TTS voice matching) |
+| **Status** | Implemented (Phases 1–8) + Phase 7b |
 | **Target** | After the caller stops talking, canned reply audio starts sending in under ~0.5s |
 
 This is the process/runbook for the latency pipeline. Language selection remains [FEAT-02](FEAT-02.md). Architectural decisions for this feature start at [ADR-011](../adr/ADR-011.md).
@@ -102,6 +102,16 @@ Each phase is a small slice with its own tests. Do not start the next phase unti
   2. **Piper:** download a voice `.onnx` whose name starts with the locale (`fr_FR-…`), set `IVR_PIPER_VOICE_DIR` or `IVR_PIPER_VOICES`, restart, delete old `.cache/ivr-phrases` files for that language if they were built with the wrong voice.
   3. **Later:** one cloud TTS backend for many locales (same `synthesize(text, language)` interface).
 
+### Phase 8 — Live speech understanding (local grammar STT)
+
+- **Goal:** After language selection, saying **balance**, **PIN**, **block**, or **goodbye** (or French **solde** / **bloquer** / **au revoir**) plays the matching canned line. No `IVR_STT_SCRIPT` required.
+- **Delivered:** [ADR-019](../adr/ADR-019.md); `GrammarStreamingSpeechToText` in `services/ivr/sapi_stt.py`; `IVR_STT_BACKEND=sapi`. Default remains the scripted stub for pytest.
+- **Tests:** `tests/ivr/pytest/test_sapi_stt.py` (fake recognizer; no PowerShell, no network).
+- **Depends on:** Phases 5–7b.
+- **Done when:** pytest green; live call with `IVR_STT_BACKEND=sapi` — you say “balance”, pause, hear the fake-balance line. Log `grammar_stt … text='balance'`.
+- **Note:** Recognition time sits on the TTFB clock, so live `ttfb_ms` will often be **over 500 ms**. That is expected until a streaming vendor (Deepgram, etc.) is swapped in. Warmed playback after the transcript is still instant.
+
+
 
 ---
 
@@ -132,6 +142,7 @@ Not in this branch’s demo path, but keep in mind:
 | [ADR-016](../adr/ADR-016.md) | Handoff to placeholder turns on the Media Stream | Phase 6 fake Twilio wiring |
 | [ADR-017](../adr/ADR-017.md) | Live smoke for canned TTFB (scripted STT) | Phase 7 handset checklist |
 | [ADR-018](../adr/ADR-018.md) | Match TTS voice to call language | Phase 7b; no cross-language voices |
+| [ADR-019](../adr/ADR-019.md) | Local grammar STT for placeholder tasks | Phase 8; Windows SAPI commands |
 | [ADR-003](../adr/ADR-003.md) | 8 kHz μ-law wire format | Unchanged |
 | [ADR-004](../adr/ADR-004.md) | Energy VAD `speech_end` | Clock start |
 | [ADR-005](../adr/ADR-005.md) | TTS + burst playback | Playback; phrase cache will extend this |
@@ -139,7 +150,7 @@ Not in this branch’s demo path, but keep in mind:
 
 ---
 
-## Key code (Phases 1–7)
+## Key code (Phases 1–8)
 
 | Area | Path |
 |------|------|
@@ -151,12 +162,13 @@ Not in this branch’s demo path, but keep in mind:
 | Placeholder turns | `services/ivr/placeholder_intents.py`, `services/ivr/turn_engine.py` |
 | Media-stream handoff | `app/api/ivr.py`, `services/ivr/turn_store.py` |
 | TTS routing | `services/ivr/tts.py`, `services/ivr/tts_lang.py` |
-| Live smoke | `tests/ivr/manual/manual_verify_smoke.py --phase 7` / `--phase 7b` |
-| Pytest | `tests/ivr/pytest/test_ttfb.py`, `test_phrase_cache.py`, `test_streaming_tts.py`, `test_streaming_stt.py`, `test_turn_engine.py`, `test_media_stream_turns.py`, `test_tts_routing.py` |
+| Grammar STT | `services/ivr/sapi_stt.py` |
+| Live smoke | `tests/ivr/manual/manual_verify_smoke.py --phase 7` / `--phase 7b` / `--phase 8` |
+| Pytest | `tests/ivr/pytest/test_ttfb.py`, `test_phrase_cache.py`, `test_streaming_tts.py`, `test_streaming_stt.py`, `test_turn_engine.py`, `test_media_stream_turns.py`, `test_tts_routing.py`, `test_sapi_stt.py` |
 
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/ivr/pytest/test_ttfb.py tests/ivr/pytest/test_phrase_cache.py tests/ivr/pytest/test_streaming_tts.py tests/ivr/pytest/test_streaming_stt.py tests/ivr/pytest/test_turn_engine.py tests/ivr/pytest/test_media_stream_turns.py tests/ivr/pytest/test_media_stream_language.py tests/ivr/pytest/test_tts_routing.py tests/ivr/pytest/test_tts.py -q
-.\venv\Scripts\python.exe tests\ivr\manual\manual_verify_smoke.py --phase 7b
+.\venv\Scripts\python.exe -m pytest tests/ivr/pytest/test_ttfb.py tests/ivr/pytest/test_phrase_cache.py tests/ivr/pytest/test_streaming_tts.py tests/ivr/pytest/test_streaming_stt.py tests/ivr/pytest/test_turn_engine.py tests/ivr/pytest/test_media_stream_turns.py tests/ivr/pytest/test_media_stream_language.py tests/ivr/pytest/test_tts_routing.py tests/ivr/pytest/test_tts.py tests/ivr/pytest/test_sapi_stt.py -q
+.\venv\Scripts\python.exe tests\ivr\manual\manual_verify_smoke.py --phase 8
 ```
 
 ---
@@ -210,4 +222,25 @@ After Phase 7b, Windows SAPI only speaks languages that have an installed speech
    - **No French voice:** menu and replies are clear English.
    - **French SAPI pack or Piper `fr_*.onnx`:** menu and replies are French, spoken as French.
 4. Add another LLM language the same way: a Piper file named `{locale}-….onnx` or a Windows voice for that language, then add catalog text later.
+
+---
+
+## Phase 8 live listen-check (the phone hears you)
+
+In **`.env`**:
+
+```env
+IVR_STT_BACKEND=sapi
+```
+
+Restart the server. Startup log should show `IVR STT backend=GrammarStreamingSpeechToText`.
+
+1. Call, pick a language, wait for the task menu.
+2. Say **balance** (or **solde** if the call language is French), then pause.
+3. Hear the fake-balance line. Log: `grammar_stt … text='balance'` then `placeholder_turn phrase=placeholder_balance`.
+4. `ttfb_ms` may be **above 500** — that includes Windows recognition time. Expected this phase.
+5. Try **goodbye** to hear the goodbye line.
+
+Windows speech recognition must be available (it usually is for English). French commands need a French recognizer pack, same idea as TTS voices.
+
 

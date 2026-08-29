@@ -34,6 +34,29 @@ def map_placeholder_intent(transcript: str) -> str:
     return DID_NOT_CATCH
 
 
+def grammar_phrases(language: str) -> tuple[str, ...]:
+    """Small command list for local speech recognition (not full dictation)."""
+    lang = (language or "en").lower().replace("_", "-").split("-", 1)[0]
+    if lang == "fr":
+        return (
+            "solde",
+            "code PIN",
+            "PIN",
+            "bloquer la carte",
+            "bloquer",
+            "au revoir",
+        )
+    return (
+        "balance",
+        "PIN",
+        "pin",
+        "block card",
+        "block",
+        "goodbye",
+        "bye",
+    )
+
+
 def _normalize(text: str) -> str:
     lowered = text.lower()
     cleaned = re.sub(r"[^\w\s]", " ", lowered, flags=re.UNICODE)

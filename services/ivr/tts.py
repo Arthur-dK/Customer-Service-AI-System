@@ -43,6 +43,58 @@ class InstalledVoice:
 _SAPI_VOICES_CACHE: list[InstalledVoice] | None = None
 
 
+def list_installed_sapi_voices() -> list[InstalledVoice]:
+    """Query Windows SAPI voices once per process. English-only if listing fails."""
+    global _SAPI_VOICES_CACHE
+    if _SAPI_VOICES_CACHE is not None:
+        return _SAPI_VOICES_CACHE
+    if not sys.platform.startswith("win"):
+        _SAPI_VOICES_CACHE = []
+        return _SAPI_VOICES_CACHE
+    script = (
+        "Add-Type -AssemblyName System.Speech; "
+        "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
+        "$s.GetInstalledVoices() | ForEach-Object { "
+        "Write-Output ($_.VoiceInfo.Name + [char]9 + "
+        "$_.VoiceInfo.Culture.TwoLetterISOLanguageName + [char]9 + "
+        "$_.VoiceInfo.Culture.Name) "
+        "}; "
+        "$s.Dispose();"
+    )
+    try:
+        completed = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", script],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        logger.exception("Could not list Windows SAPI voices; assuming English only")
+        _SAPI_VOICES_CACHE = [InstalledVoice(name=None, language="en", culture="en-US")]
+        return _SAPI_VOICES_CACHE
+
+    voices: list[InstalledVoice] = []
+    for line in (completed.stdout or "").splitlines():
+        parts = line.split("\t")
+        if len(parts) < 2:
+            continue
+        name, iso = parts[0].strip(), parts[1].strip()
+        culture = parts[2].strip() if len(parts) > 2 else ""
+        lang = normalize_language(iso)
+        if name and lang:
+            voices.append(InstalledVoice(name=name, language=lang, culture=culture))
+    if not voices:
+        logger.warning("SAPI voice list empty; assuming default English voice")
+        voices = [InstalledVoice(name=None, language="en", culture="en-US")]
+    _SAPI_VOICES_CACHE = voices
+    logger.info(
+        "SAPI installed voices=%s",
+        [(voice.language, voice.name) for voice in voices],
+    )
+    return voices
+
+
 class TextToSpeech(Protocol):
     async def synthesize(self, text: str, language: str) -> bytes:
         """Return 8 kHz μ-law audio for Twilio Media Streams."""
@@ -126,7 +178,10 @@ class WindowsSapiTextToSpeech:
     """
 
     def __init__(self, voices: list[InstalledVoice] | None = None) -> None:
-        self.voices = list(voices) if voices is not None else list_installed_sapi_voices()
+        if voices is not None:
+            self.voices = list(voices)
+        else:
+            self.voices = list(list_installed_sapi_voices())
 
     def supports_language(self, language: str) -> bool:
         return self._voice_for(language) is not None
@@ -341,58 +396,6 @@ def _piper_backends(
             logger.warning("Piper model path set but missing (%s)", model)
 
     return list(by_lang.values())
-
-
-def list_installed_sapi_voices() -> list[InstalledVoice]:
-    """Query Windows SAPI voices once per process. English-only if listing fails."""
-    global _SAPI_VOICES_CACHE
-    if _SAPI_VOICES_CACHE is not None:
-        return _SAPI_VOICES_CACHE
-    if not sys.platform.startswith("win"):
-        _SAPI_VOICES_CACHE = []
-        return _SAPI_VOICES_CACHE
-    script = (
-        "Add-Type -AssemblyName System.Speech; "
-        "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
-        "$s.GetInstalledVoices() | ForEach-Object { "
-        "Write-Output ($_.VoiceInfo.Name + [char]9 + "
-        "$_.VoiceInfo.Culture.TwoLetterISOLanguageName + [char]9 + "
-        "$_.VoiceInfo.Culture.Name) "
-        "}; "
-        "$s.Dispose();"
-    )
-    try:
-        completed = subprocess.run(
-            ["powershell", "-NoProfile", "-Command", script],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=30,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        logger.exception("Could not list Windows SAPI voices; assuming English only")
-        _SAPI_VOICES_CACHE = [InstalledVoice(name=None, language="en", culture="en-US")]
-        return _SAPI_VOICES_CACHE
-
-    voices: list[InstalledVoice] = []
-    for line in (completed.stdout or "").splitlines():
-        parts = line.split("\t")
-        if len(parts) < 2:
-            continue
-        name, iso = parts[0].strip(), parts[1].strip()
-        culture = parts[2].strip() if len(parts) > 2 else ""
-        lang = normalize_language(iso)
-        if name and lang:
-            voices.append(InstalledVoice(name=name, language=lang, culture=culture))
-    if not voices:
-        logger.warning("SAPI voice list empty; assuming default English voice")
-        voices = [InstalledVoice(name=None, language="en", culture="en-US")]
-    _SAPI_VOICES_CACHE = voices
-    logger.info(
-        "SAPI installed voices=%s",
-        [(voice.language, voice.name) for voice in voices],
-    )
-    return voices
 
 
 def list_spoken_languages(tts: TextToSpeech) -> tuple[str, ...]:

@@ -5,7 +5,7 @@ import logging
 from fastapi import FastAPI
 
 from app.api import email, health, ivr, sms
-from app.deps import get_lid, get_phrase_cache, get_tts
+from app.deps import get_lid, get_phrase_cache, get_streaming_stt, get_tts
 from core.config import settings
 from services.ivr.streaming_stt import parse_stt_script
 from services.ivr.tts import list_spoken_languages, warm_language_selection_prompts
@@ -33,8 +33,10 @@ async def lifespan(_app: FastAPI):
         log.exception("IVR phrase cache warmup failed; canned lines may synth on first use")
 
     script = parse_stt_script(settings.IVR_STT_SCRIPT)
+    stt = get_streaming_stt()
     log.info(
-        "IVR STT script=%s (empty script plays did_not_catch after each pause; copy IVR_STT_SCRIPT into .env, not only .env.example)",
+        "IVR STT backend=%s script=%s",
+        type(stt).__name__,
         script or "(none)",
     )
 

@@ -86,9 +86,17 @@ def parse_stt_script(raw: str | None) -> list[str]:
 
 def build_default_streaming_stt(
     finals: list[str] | None = None,
+    *,
+    backend: str | None = None,
 ) -> StreamingSpeechToText:
-    """Scripted stub. Pass a Deepgram (or local) implementation later instead."""
-    return ScriptedStreamingSpeechToText(finals=finals)
+    """``sapi`` uses Windows grammar STT. Anything else uses the scripted stub."""
+    script = list(finals if finals is not None else ())
+    kind = (backend or "scripted").strip().lower()
+    if kind == "sapi":
+        from services.ivr.sapi_stt import GrammarStreamingSpeechToText
+
+        return GrammarStreamingSpeechToText()
+    return ScriptedStreamingSpeechToText(finals=script)
 
 
 async def feed_until_speech_end(

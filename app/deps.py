@@ -45,5 +45,7 @@ def get_streaming_tts() -> StreamingTextToSpeech:
 
 
 def get_streaming_stt() -> StreamingSpeechToText:
-    # New stub per call so the smoke script is not shared/exhausted across callers.
-    return build_default_streaming_stt(finals=parse_stt_script(settings.IVR_STT_SCRIPT))
+    return build_default_streaming_stt(
+        finals=parse_stt_script(settings.IVR_STT_SCRIPT),
+        backend=settings.IVR_STT_BACKEND,
+    )
