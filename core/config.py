@@ -19,10 +19,10 @@ class Settings(BaseSettings):
     # IVR TTS: one voice per language. Never speak French with an English voice.
     IVR_PIPER_MODEL_PATH: str | None = None
     IVR_PIPER_BIN: str | None = None
-    # JSON object, e.g. {"en": "C:/voices/en_US-lessac-medium.onnx", "fr": "C:/voices/fr_FR-siwis-medium.onnx"}
     IVR_PIPER_VOICES: str | None = None
-    # Directory of Piper *.onnx files named like fr_FR-siwis-medium.onnx
     IVR_PIPER_VOICE_DIR: str | None = None
+    # None = on when not Windows (Render). True/false to force. Needs outbound HTTPS.
+    IVR_USE_EDGE_TTS: bool | None = None
 
     # IVR language ID — prefer SpeechBrain when installed; fixed LID remains fallback
     IVR_LID_FORCE_LANGUAGE: str | None = None

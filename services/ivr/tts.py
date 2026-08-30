@@ -312,6 +312,7 @@ def build_default_tts(
     *,
     piper_voices: str | None = None,
     piper_voice_dir: str | None = None,
+    use_edge: bool | None = None,
     cache: bool = True,
     cache_dir: Path | None = DEFAULT_TTS_CACHE_DIR,
 ) -> TextToSpeech:
@@ -335,6 +336,18 @@ def build_default_tts(
             spoken,
         )
         backends.append(sapi)
+    want_edge = (not sys.platform.startswith("win")) if use_edge is None else bool(use_edge)
+    if want_edge:
+        from services.ivr.edge_tts import EdgeTextToSpeech, edge_tts_available
+
+        if edge_tts_available():
+            logger.info("Using Edge neural TTS (network) for languages without a local voice")
+            backends.append(EdgeTextToSpeech())
+        else:
+            logger.warning(
+                "IVR_USE_EDGE_TTS requested but edge-tts/miniaudio are not installed; "
+                "Linux hosts will use tones. pip install edge-tts miniaudio"
+            )
     if not backends:
         logger.warning(
             "No speech TTS configured — using tone stub. "
@@ -412,6 +425,10 @@ def list_spoken_languages(tts: TextToSpeech) -> tuple[str, ...]:
         return tuple(sorted({voice.language for voice in inner.voices}))
     if isinstance(inner, PiperTextToSpeech):
         return (inner.language,)
+    from services.ivr.edge_tts import EDGE_VOICES, EdgeTextToSpeech
+
+    if isinstance(inner, EdgeTextToSpeech):
+        return tuple(sorted(EDGE_VOICES))
     return tuple()
 
 

@@ -18,6 +18,7 @@ def get_tts() -> TextToSpeech:
         piper_bin=settings.IVR_PIPER_BIN,
         piper_voices=settings.IVR_PIPER_VOICES,
         piper_voice_dir=settings.IVR_PIPER_VOICE_DIR,
+        use_edge=settings.IVR_USE_EDGE_TTS,
     )
 
 
