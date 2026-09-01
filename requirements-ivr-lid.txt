@@ -3,10 +3,10 @@
 # Local Windows:
 #   .\venv\Scripts\python.exe -m pip install -r requirements-ivr-lid.txt
 #
-# Needs Python 3.10–3.12 (not 3.14). CPU Torch wheels:
+# CPU Torch wheels (2.9.1+ is what the pytorch.org cpu index currently serves):
 #   --extra-index-url https://download.pytorch.org/whl/cpu
 
-torch>=2.2.0,<=2.9.0
-torchaudio>=2.2.0,<=2.9.0
+torch>=2.9.0
+torchaudio>=2.9.0
 speechbrain>=1.0.0,<2
 huggingface_hub>=0.23.0

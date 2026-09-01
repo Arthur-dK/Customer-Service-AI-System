@@ -16,6 +16,6 @@ huggingface_hub>=0.23.0
 
 # Linux/Render default pip: install SpeechBrain LID (skipped on Windows).
 --extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.5.1+cpu; sys_platform == "linux"
-torchaudio==2.5.1+cpu; sys_platform == "linux"
+torch==2.9.1+cpu; sys_platform == "linux"
+torchaudio==2.9.1+cpu; sys_platform == "linux"
 speechbrain>=1.0.0,<2; sys_platform == "linux"
