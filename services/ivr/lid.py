@@ -5,12 +5,14 @@ from __future__ import annotations
 import asyncio
 import importlib
 import logging
+import os
 import sys
 import time
 import warnings
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Iterator, Protocol
 
 import numpy as np
 
@@ -199,6 +201,51 @@ def _patch_speechbrain_windows_lazy_imports() -> None:
     iu.DeprecatedModuleRedirect.ensure_module = deprecated_ensure_module  # type: ignore[method-assign]
 
 
+@contextmanager
+def _speechbrain_checkpoint_load() -> Iterator[None]:
+    """Torch 2.6+ defaults torch.load(weights_only=True), which breaks SpeechBrain checkpoints."""
+    import torch
+
+    original = torch.load
+
+    def load_checkpoint(*args: Any, **kwargs: Any) -> Any:
+        kwargs.setdefault("weights_only", False)
+        return original(*args, **kwargs)
+
+    torch.load = load_checkpoint  # type: ignore[method-assign]
+    try:
+        yield
+    finally:
+        torch.load = original  # type: ignore[method-assign]
+
+
+def _load_speechbrain_classifier(model_source: str, device: str) -> Any:
+    from speechbrain.inference.classifiers import EncoderClassifier  # type: ignore
+
+    savedir = _speechbrain_savedir(model_source)
+    savedir.mkdir(parents=True, exist_ok=True)
+    source: str = model_source
+    if not (savedir / "hyperparams.yaml").is_file():
+        try:
+            from huggingface_hub import snapshot_download
+
+            snapshot_download(repo_id=model_source, local_dir=str(savedir))
+        except Exception as exc:
+            logger.warning(
+                "huggingface_hub snapshot_download failed for %s (%s); SpeechBrain will fetch",
+                model_source,
+                exc,
+            )
+    if (savedir / "hyperparams.yaml").is_file():
+        source = str(savedir)
+    with _speechbrain_checkpoint_load():
+        return EncoderClassifier.from_hparams(
+            source=source,
+            savedir=str(savedir),
+            run_opts={"device": device},
+        )
+
+
 class SpeechBrainLanguageIdentifier:
     """
     Dedicated audio language-ID via SpeechBrain (VoxLingua107 ECAPA by default).
@@ -218,25 +265,24 @@ class SpeechBrainLanguageIdentifier:
         else:
             _patch_speechbrain_windows_lazy_imports()
             try:
-                from speechbrain.inference.classifiers import EncoderClassifier  # type: ignore
+                import speechbrain  # noqa: F401
             except ImportError as exc:  # pragma: no cover - optional dependency
                 raise RuntimeError(
                     "speechbrain is not installed. Install optional IVR LID deps "
-                    "(requirements-ivr-lid.txt) or use FixedLanguageIdentifier."
+                    "(requirements-ivr-lid.txt or requirements-render.txt)."
                 ) from exc
 
             try:
-                self._classifier = EncoderClassifier.from_hparams(
-                    source=model_source,
-                    run_opts={"device": device},
-                )
+                self._classifier = _load_speechbrain_classifier(model_source, device)
             except Exception as exc:  # pragma: no cover - platform/model load failures
+                savedir = _speechbrain_savedir(model_source)
                 raise RuntimeError(
-                    f"Failed to load SpeechBrain LID model '{model_source}': {exc}. "
-                    "Fixed LID remains available as fallback."
+                    f"Failed to load SpeechBrain LID model '{model_source}' "
+                    f"(savedir={savedir}): {exc}."
                 ) from exc
         self.model_source = model_source
         self.device = device
+        self.backend = "speechbrain"
 
     async def identify(
         self,
@@ -291,44 +337,6 @@ class SpeechBrainLanguageIdentifier:
             if not chosen:
                 chosen, chosen_conf, remapped_from = language, confidence, None
 
-            # #region agent log
-            try:
-                import json
-                from pathlib import Path
-
-                path = Path(__file__).resolve().parents[2] / "debug-6ce0b3.log"
-                with path.open("a", encoding="utf-8") as fh:
-                    fh.write(
-                        json.dumps(
-                            {
-                                "sessionId": "6ce0b3",
-                                "runId": "post-fix",
-                                "hypothesisId": "D,E",
-                                "location": "lid.py:SpeechBrain.identify",
-                                "message": "lid_topk",
-                                "data": {
-                                    "duration_ms": int(
-                                        1000 * len(waveform) / SPEECHBRAIN_TARGET_RATE
-                                    ),
-                                    "input_sample_rate": sample_rate,
-                                    "pcm16_bytes": len(pcm16_audio),
-                                    "raw_top_language": language,
-                                    "raw_confidence": confidence,
-                                    "chosen_language": chosen,
-                                    "chosen_confidence": chosen_conf,
-                                    "remapped_from": remapped_from,
-                                    "raw_label": str(label),
-                                    "top_labels": top_labels,
-                                    "top_probs": [round(float(p), 4) for p in top_probs],
-                                },
-                                "timestamp": int(time.time() * 1000),
-                            }
-                        )
-                        + "\n"
-                    )
-            except Exception:
-                pass
-            # #endregion
             return chosen, chosen_conf, remapped_from, top_labels, top_probs, str(label)
 
         language, confidence, remapped_from, _top_labels, _top_probs, _raw = await asyncio.to_thread(
@@ -352,14 +360,26 @@ class SpeechBrainLanguageIdentifier:
         )
 
 
+def _speechbrain_savedir(model_source: str) -> Path:
+    root = Path(os.environ.get("HF_HOME") or (Path(".cache") / "huggingface"))
+    return root / "ivr-lid" / model_source.replace("/", "--")
+
+
 def build_default_lid(
     prefer_speechbrain: bool = True,
     force_language: str | None = None,
     speechbrain_model: str = DEFAULT_SPEECHBRAIN_MODEL,
 ) -> LanguageIdentifier:
-    if force_language:
-        logger.info("Using fixed LID language override: %s", force_language)
-        return FixedLanguageIdentifier(language=force_language)
+    force = (force_language or "").strip() or None
+    if force and not prefer_speechbrain:
+        logger.info("Using fixed LID language override: %s", force)
+        return FixedLanguageIdentifier(language=force)
+
+    if force and prefer_speechbrain:
+        logger.warning(
+            "Ignoring IVR_LID_FORCE_LANGUAGE=%s because SpeechBrain LID is enabled",
+            force,
+        )
 
     if prefer_speechbrain:
         try:
@@ -367,12 +387,17 @@ def build_default_lid(
             logger.info("Using SpeechBrain LID model=%s", speechbrain_model)
             return lid
         except Exception as exc:  # pragma: no cover - optional dependency path
-            logger.warning("SpeechBrain LID unavailable (%s); using fixed English LID", exc)
+            logger.exception("SpeechBrain LID failed to load")
+            logger.warning(
+                "Using fixed English LID fallback (%s: %s). Spoken audio is not identified.",
+                type(exc).__name__,
+                exc,
+            )
+            return FixedLanguageIdentifier(language="en", confidence=0.99, backend="fixed-fallback")
 
     logger.warning(
-        "Using fixed English LID fallback with high confidence. "
-        "Install requirements-ivr-lid.txt or set IVR_LID_FORCE_LANGUAGE. "
-        "Any detected speech will be treated as English until real LID is configured."
+        "Using fixed English LID because SpeechBrain is disabled. "
+        "Set IVR_USE_SPEECHBRAIN_LID=true on Render."
     )
     return FixedLanguageIdentifier(language="en", confidence=0.99, backend="fixed-fallback")
 

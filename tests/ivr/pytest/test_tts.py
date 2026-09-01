@@ -8,7 +8,7 @@ import sys
 import pytest
 
 from services.ivr.audio import TWILIO_SAMPLE_RATE, mulaw_duration_ms, mulaw_to_pcm16, pcm16_rms
-from services.ivr.tts import CachedTextToSpeech, ToneTextToSpeech, WindowsSapiTextToSpeech, build_default_tts
+from services.ivr.tts import CachedTextToSpeech, InstalledVoice, ToneTextToSpeech, UnsupportedTtsLanguageError, WindowsSapiTextToSpeech, build_default_tts
 
 
 @pytest.mark.asyncio
@@ -50,7 +50,6 @@ async def test_cached_tts_avoids_second_inner_call(tmp_path):
 async def test_windows_sapi_speaks_english_mulaw():
     tts = WindowsSapiTextToSpeech()
     assert tts.supports_language("en") is True
-    assert tts.supports_language("he") is False
     audio = await tts.synthesize("Please say the language you would like to use.", "en")
     assert len(audio) > TWILIO_SAMPLE_RATE  # > 1 second
     assert pcm16_rms(mulaw_to_pcm16(audio)) > 500.0
@@ -70,11 +69,51 @@ def test_windows_sapi_works_under_selector_event_loop():
     assert pcm16_rms(mulaw_to_pcm16(audio)) > 500.0
 
 
-def test_build_default_tts_on_windows_prefers_sapi():
+@pytest.mark.asyncio
+async def test_cached_tts_refuses_unsupported_language(tmp_path):
+    inner = WindowsSapiTextToSpeech(
+        voices=[InstalledVoice(name="English", language="en", culture="en-US")]
+    )
+    tts = CachedTextToSpeech(inner, cache_dir=tmp_path)
+    with pytest.raises(UnsupportedTtsLanguageError):
+        await tts.synthesize("Bonjour", "fr")
+
+
+def test_build_default_tts_on_windows_includes_spoken_english():
     if not sys.platform.startswith("win"):
         pytest.skip("Windows only")
     tts = build_default_tts(cache=False)
-    assert isinstance(tts, WindowsSapiTextToSpeech)
+    assert tts.supports_language("en") is True
     wrapped = build_default_tts(cache=True)
     assert isinstance(wrapped, CachedTextToSpeech)
-    assert isinstance(wrapped.inner, WindowsSapiTextToSpeech)
+    assert wrapped.supports_language("en") is True
+
+
+@pytest.mark.asyncio
+async def test_warm_language_selection_prompts_uses_catalog_languages(monkeypatch):
+    from core.language.phrases import PhraseCatalog
+    from services.ivr.tts import warm_language_selection_prompts
+
+    spoken: list[str] = []
+
+    class SpyTone(ToneTextToSpeech):
+        async def synthesize(self, text: str, language: str) -> bytes:
+            spoken.append(language)
+            return await super().synthesize(text, language)
+
+    monkeypatch.setattr(
+        "core.language.countries.load_prompts",
+        lambda: {
+            "en": "Please say the language.",
+            "fr": "Veuillez dire la langue.",
+            "he": "should not warm",
+            "ar": "should not warm",
+        },
+    )
+    monkeypatch.setattr(
+        "core.language.phrases.load_phrase_catalog",
+        lambda: PhraseCatalog(warmup_languages=("en", "fr"), phrases={}),
+    )
+    n = await warm_language_selection_prompts(SpyTone())
+    assert n == 2
+    assert spoken == ["en", "fr"]

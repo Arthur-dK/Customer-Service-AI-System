@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,9 +17,13 @@ class Settings(BaseSettings):
     DEFAULT_EMBEDDING_MODEL: str = "bge-m3"
     DEFAULT_LLM_MODEL: str = "llama3.1:8b"
 
-    # IVR TTS (optional Piper; otherwise Windows SAPI / tone stub)
+    # IVR TTS: one voice per language. Never speak French with an English voice.
     IVR_PIPER_MODEL_PATH: str | None = None
     IVR_PIPER_BIN: str | None = None
+    IVR_PIPER_VOICES: str | None = None
+    IVR_PIPER_VOICE_DIR: str | None = None
+    # None = on when not Windows (Render). True/false to force. Needs outbound HTTPS.
+    IVR_USE_EDGE_TTS: bool | None = None
 
     # IVR language ID — prefer SpeechBrain when installed; fixed LID remains fallback
     IVR_LID_FORCE_LANGUAGE: str | None = None
@@ -32,6 +37,22 @@ class Settings(BaseSettings):
     # because event-loop sleep + WS latency exceeds 20ms per frame.
     IVR_PLAYBACK_REALTIME: bool = False
     IVR_VAD_RMS_THRESHOLD: float = 250.0
+
+    # Comma-separated stub transcripts for live smoke (e.g. "balance,goodbye").
+    # Ignored when IVR_STT_BACKEND=sapi.
+    IVR_STT_SCRIPT: str | None = None
+    # scripted (default, CI / Phase 7) | sapi (Windows grammar — hears balance/PIN/block/goodbye)
+    IVR_STT_BACKEND: str = "scripted"
+
+    @field_validator("IVR_LID_FORCE_LANGUAGE", mode="before")
+    @classmethod
+    def _empty_force_language(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        text = str(value).strip()
+        if text.lower() in ("", "none", "null", "false"):
+            return None
+        return text
 
 
 settings = Settings()

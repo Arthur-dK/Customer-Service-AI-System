@@ -8,7 +8,6 @@ import logging
 import time
 from dataclasses import dataclass
 from enum import Enum
-from pathlib import Path
 from typing import Any
 
 from core.language import (
@@ -18,7 +17,7 @@ from core.language import (
     language_selection_prompt,
     resolve_caller_locale,
 )
-from services.ivr.audio import TWILIO_SAMPLE_RATE, chunk_mulaw, mulaw_to_pcm16, pcm16_rms
+from services.ivr.audio import TWILIO_SAMPLE_RATE, chunk_mulaw
 from services.ivr.lid import LanguageIdentifier
 from services.ivr.metrics import LanguageSelectionMetrics
 from services.ivr.tts import TextToSpeech, ToneTextToSpeech
@@ -28,44 +27,6 @@ logger = logging.getLogger(__name__)
 
 # Outbound queue sentinel: media-stream sender emits Twilio "clear" (flush buffer).
 CLEAR_AUDIO_SENTINEL = "__TWILIO_CLEAR__"
-
-# #region agent log
-_DEBUG_LOG_PATH = (
-    Path(__file__).resolve().parents[2] / "debug-6ce0b3.log"
-)
-
-
-def _agent_dbg(
-    hypothesis_id: str,
-    location: str,
-    message: str,
-    data: dict[str, Any],
-    run_id: str = "pre-fix",
-) -> None:
-    import json
-
-    try:
-        with _DEBUG_LOG_PATH.open("a", encoding="utf-8") as fh:
-            fh.write(
-                json.dumps(
-                    {
-                        "sessionId": "6ce0b3",
-                        "runId": run_id,
-                        "hypothesisId": hypothesis_id,
-                        "location": location,
-                        "message": message,
-                        "data": data,
-                        "timestamp": int(time.time() * 1000),
-                    },
-                    default=str,
-                )
-                + "\n"
-            )
-    except Exception:
-        pass
-
-
-# #endregion
 
 
 class SelectionPhase(str, Enum):
@@ -342,19 +303,6 @@ class LanguageSelector:
             if listen_task.done():
                 # DTMF or speech barge-in: stop local enqueue and flush Twilio buffer.
                 playback_cancel.set()
-                # #region agent log
-                listen_result = listen_task.result()
-                _agent_dbg(
-                    "A",
-                    "language_selection.py:menu_listen_done",
-                    "barge_in_listen_completed_before_clear",
-                    {
-                        "outcome_kind": listen_result.get("kind"),
-                        "clear_sent_after_utterance": True,
-                        "play_task_done": play_task.done(),
-                    },
-                )
-                # #endregion
                 _clear_twilio_playback(outbound_audio)
                 if not play_task.done():
                     play_task.cancel()
@@ -362,7 +310,7 @@ class LanguageSelector:
                         await play_task
                     except asyncio.CancelledError:
                         pass
-                return listen_result
+                return listen_task.result()
 
             if play_task.done():
                 # Burst mode finishes enqueue instantly while Twilio still plays the
@@ -408,42 +356,12 @@ class LanguageSelector:
     ) -> str | None:
         metrics.speech_utterances += 1
         result = await self.lid.identify(pcm16)
-        duration_ms = int(1000 * (len(pcm16) / 2) / TWILIO_SAMPLE_RATE)
         if result is None:
-            # #region agent log
-            _agent_dbg(
-                "B,D,E",
-                "language_selection.py:_select_from_speech",
-                "lid_returned_none",
-                {"method": method, "duration_ms": duration_ms, "pcm16_bytes": len(pcm16)},
-            )
-            # #endregion
             return None
         metrics.lid_backend = result.backend
         metrics.lid_language = result.language
         metrics.lid_confidence = result.confidence
         metrics.lid_latency_ms = result.latency_ms
-        accepted = result.confidence >= self.min_lid_confidence
-        # #region agent log
-        _agent_dbg(
-            "D,E",
-            "language_selection.py:_select_from_speech",
-            "lid_decision",
-            {
-                "method": method,
-                "duration_ms": duration_ms,
-                "pcm16_bytes": len(pcm16),
-                "utterance_rms": round(pcm16_rms(pcm16), 1),
-                "language": result.language,
-                "confidence": result.confidence,
-                "remapped_from": getattr(result, "remapped_from", None),
-                "backend": result.backend,
-                "min_lid_confidence": self.min_lid_confidence,
-                "accepted": accepted,
-            },
-            run_id="post-fix",
-        )
-        # #endregion
         if result.confidence < self.min_lid_confidence:
             logger.info(
                 "LID confidence too low: lang=%s confidence=%.3f",
@@ -578,55 +496,16 @@ class LanguageSelector:
             events = self.vad.process_mulaw(chunk)
             for event in events:
                 if event.kind == "speech_start":
-                    playback_was_active = (
-                        cancel_playback is not None and not cancel_playback.is_set()
-                    )
                     if cancel_playback is not None:
                         cancel_playback.set()
-                    cleared_now = False
                     if outbound_audio is not None and cancel_playback is not None:
                         _clear_twilio_playback(outbound_audio)
-                        cleared_now = True
-                    # #region agent log
-                    _agent_dbg(
-                        "A,C",
-                        "language_selection.py:speech_start",
-                        "vad_speech_start",
-                        {
-                            "barge_in_listen": cancel_playback is not None,
-                            "playback_cancel_was_unset": playback_was_active,
-                            "cleared_twilio_on_speech_start": cleared_now,
-                            "chunk_bytes": len(chunk),
-                            "chunk_rms": round(pcm16_rms(mulaw_to_pcm16(chunk)), 1),
-                        },
-                        run_id="post-fix",
-                    )
-                    # #endregion
                     if first_speech_holder.get("t") is None:
                         first_speech_holder["t"] = (time.perf_counter() - listen_started) * 1000.0
                         metrics.time_to_first_speech_ms = first_speech_holder["t"]
                     logger.info("VAD speech_start")
                     deadline = time.perf_counter() + max(self.silence_timeout_s, 3.0)
                 elif event.kind == "speech_end":
-                    duration_ms = int(1000 * (len(event.audio_pcm16) / 2) / TWILIO_SAMPLE_RATE)
-                    utterance_rms = round(pcm16_rms(event.audio_pcm16), 1)
-                    # #region agent log
-                    _agent_dbg(
-                        "A,B,C",
-                        "language_selection.py:speech_end",
-                        "vad_speech_end",
-                        {
-                            "barge_in_listen": cancel_playback is not None,
-                            "playback_cancel_set": (
-                                cancel_playback.is_set() if cancel_playback is not None else None
-                            ),
-                            "pcm16_bytes": len(event.audio_pcm16),
-                            "duration_ms": duration_ms,
-                            "utterance_rms": utterance_rms,
-                        },
-                        run_id="post-fix",
-                    )
-                    # #endregion
                     logger.info("VAD speech_end bytes=%s", len(event.audio_pcm16))
                     return {
                         "kind": "speech",

@@ -83,6 +83,18 @@ def test_build_default_lid_force_language():
     assert lid.language == "fr"
 
 
+def test_build_default_lid_ignores_force_when_speechbrain_enabled(monkeypatch):
+    real = SpeechBrainLanguageIdentifier
+
+    monkeypatch.setattr(
+        "services.ivr.lid.SpeechBrainLanguageIdentifier",
+        lambda *args, **kwargs: real(classifier=object()),
+    )
+    lid = build_default_lid(prefer_speechbrain=True, force_language="en")
+    assert isinstance(lid, real)
+    assert getattr(lid, "backend", None) == "speechbrain"
+
+
 def test_build_default_lid_falls_back_without_speechbrain():
     if speechbrain_available():
         pytest.skip("SpeechBrain installed; fallback path not exercised")
@@ -90,6 +102,23 @@ def test_build_default_lid_falls_back_without_speechbrain():
     assert isinstance(lid, FixedLanguageIdentifier)
     assert lid.language == "en"
     assert lid.confidence >= 0.15
+
+
+def test_speechbrain_checkpoint_load_defaults_weights_only_false(monkeypatch):
+    import torch
+
+    from services.ivr.lid import _speechbrain_checkpoint_load
+
+    seen: dict[str, object] = {}
+
+    def fake_load(*_args, **kwargs):
+        seen.update(kwargs)
+        return {"ok": True}
+
+    monkeypatch.setattr(torch, "load", fake_load)
+    with _speechbrain_checkpoint_load():
+        torch.load("checkpoint.pt")
+    assert seen.get("weights_only") is False
 
 
 def test_build_default_lid_falls_back_when_speechbrain_load_fails(monkeypatch):

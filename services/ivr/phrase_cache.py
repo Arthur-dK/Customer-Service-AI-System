@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from core.language.countries import DEFAULT_PROMPT_LANGUAGE
 from core.language.phrases import PhraseCatalog, UnknownPhraseError, load_phrase_catalog
 from services.ivr.tts import TextToSpeech
 
@@ -36,20 +37,48 @@ class PhraseAudioCache:
         if cache_dir is not None:
             cache_dir.mkdir(parents=True, exist_ok=True)
 
+    def play_language(self, phrase_id: str, language: str) -> str:
+        """Catalog language we will actually speak (matching TTS voice, not just text)."""
+        requested = self.catalog.resolve_language(phrase_id, language)
+        if self.tts.supports_language(requested):
+            return requested
+        texts = self.catalog.phrases.get(phrase_id) or {}
+        for candidate in (DEFAULT_PROMPT_LANGUAGE, *texts):
+            if candidate in texts and self.tts.supports_language(candidate):
+                if candidate != requested:
+                    logger.warning(
+                        "TTS has no voice for %s; playing %s for phrase %s",
+                        requested,
+                        candidate,
+                        phrase_id,
+                    )
+                return candidate
+        return requested
+
     def get_ready(self, phrase_id: str, language: str) -> bytes:
         """Return cached μ-law. Never synthesizes."""
-        key = self._key(phrase_id, language)
+        play_lang = self.play_language(phrase_id, language)
+        key = (phrase_id, play_lang)
         audio = self._memory.get(key)
         if audio is None:
-            raise PhraseNotReadyError(f"{phrase_id}:{key[1]}")
+            raise PhraseNotReadyError(f"{phrase_id}:{play_lang}")
+        if play_lang != language.lower():
+            logger.info(
+                "Phrase cache fallback id=%s requested=%s playing=%s",
+                phrase_id,
+                language,
+                play_lang,
+            )
         return audio
 
     def is_ready(self, phrase_id: str, language: str) -> bool:
-        return self._key(phrase_id, language) in self._memory
+        play_lang = self.play_language(phrase_id, language)
+        return (phrase_id, play_lang) in self._memory
 
     async def get(self, phrase_id: str, language: str) -> bytes:
         """Memory, then disk, then TTS. Use warmup / first fill, not the 0.5s path."""
-        key = self._key(phrase_id, language)
+        play_lang = self.play_language(phrase_id, language)
+        key = (phrase_id, play_lang)
         cached = self._memory.get(key)
         if cached is not None:
             return cached
@@ -61,15 +90,15 @@ class PhraseAudioCache:
             logger.info(
                 "Phrase cache hit (disk) id=%s lang=%s bytes=%s",
                 phrase_id,
-                key[1],
+                play_lang,
                 len(audio),
             )
             return audio
 
-        text = self.catalog.text(phrase_id, language)
-        audio = await self.tts.synthesize(text, language)
+        text = self.catalog.text(phrase_id, play_lang, strict=True)
+        audio = await self.tts.synthesize(text, play_lang)
         self._store(key, audio)
-        logger.info("Phrase cache store id=%s lang=%s bytes=%s", phrase_id, key[1], len(audio))
+        logger.info("Phrase cache store id=%s lang=%s bytes=%s", phrase_id, play_lang, len(audio))
         return audio
 
     async def warmup(self, languages: tuple[str, ...] | None = None) -> int:
