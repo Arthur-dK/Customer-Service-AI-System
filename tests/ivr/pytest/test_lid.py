@@ -83,6 +83,18 @@ def test_build_default_lid_force_language():
     assert lid.language == "fr"
 
 
+def test_build_default_lid_ignores_force_when_speechbrain_enabled(monkeypatch):
+    real = SpeechBrainLanguageIdentifier
+
+    monkeypatch.setattr(
+        "services.ivr.lid.SpeechBrainLanguageIdentifier",
+        lambda *args, **kwargs: real(classifier=object()),
+    )
+    lid = build_default_lid(prefer_speechbrain=True, force_language="en")
+    assert isinstance(lid, real)
+    assert getattr(lid, "backend", None) == "speechbrain"
+
+
 def test_build_default_lid_falls_back_without_speechbrain():
     if speechbrain_available():
         pytest.skip("SpeechBrain installed; fallback path not exercised")

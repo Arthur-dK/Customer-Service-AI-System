@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -37,11 +38,21 @@ class Settings(BaseSettings):
     IVR_PLAYBACK_REALTIME: bool = False
     IVR_VAD_RMS_THRESHOLD: float = 250.0
 
-# Comma-separated stub transcripts for live smoke (e.g. "balance,goodbye").
-# Ignored when IVR_STT_BACKEND=sapi.
+    # Comma-separated stub transcripts for live smoke (e.g. "balance,goodbye").
+    # Ignored when IVR_STT_BACKEND=sapi.
     IVR_STT_SCRIPT: str | None = None
     # scripted (default, CI / Phase 7) | sapi (Windows grammar — hears balance/PIN/block/goodbye)
     IVR_STT_BACKEND: str = "scripted"
+
+    @field_validator("IVR_LID_FORCE_LANGUAGE", mode="before")
+    @classmethod
+    def _empty_force_language(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        text = str(value).strip()
+        if text.lower() in ("", "none", "null", "false"):
+            return None
+        return text
 
 
 settings = Settings()

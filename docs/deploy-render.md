@@ -1,44 +1,49 @@
 # Deploying the IVR on Render
 
-The phone path needs **Python 3.12**, **SpeechBrain + CPU Torch** (language ID), **Edge TTS**, and **scripted STT** (Windows SAPI does not run on Linux).
+Spoken language ID needs **SpeechBrain + CPU Torch on Python 3.12**. If logs say `FixedLanguageIdentifier` / `fixed-fallback`, every utterance is treated as English.
 
-## Dashboard (existing service)
+## Recommended: Docker
 
-1. **Instance:** at least **2 GB RAM** (SpeechBrain on 512 MB often dies).
-2. **Environment → PYTHON_VERSION** = `3.12.8` (not 3.14).
-3. **Build command:** `export HF_HOME=/opt/render/project/src/.cache/huggingface && pip install -r requirements-render.txt && PYTHONPATH=. python -c "from services.ivr.lid import build_default_lid; print(type(build_default_lid()).__name__)"`
-4. **Start command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-5. Env vars:
+In the Render dashboard, set the service **Language / Environment to Docker** (not native Python). Root directory is the repo; Dockerfile is `./Dockerfile`.
+
+The image:
+
+- uses Python 3.12.8
+- installs `requirements-render.txt` (Torch CPU + SpeechBrain)
+- downloads the VoxLingua107 model at **build** time
+
+Instance size: **at least 2 GB RAM**.
+
+Env vars (delete `IVR_LID_FORCE_LANGUAGE` if it is set to `en`):
 
 ```env
 IVR_USE_SPEECHBRAIN_LID=true
-IVR_LID_FORCE_LANGUAGE=
 IVR_STT_BACKEND=scripted
 IVR_STT_SCRIPT=balance,goodbye
 IVR_PLAYBACK_REALTIME=false
 DEBUG=true
-HF_HOME=/opt/render/project/src/.cache/huggingface
 ```
 
-Leave `IVR_LID_FORCE_LANGUAGE` **empty**. First build downloads the LID model (can take several minutes). Build log must print `SpeechBrainLanguageIdentifier`, not `FixedLanguageIdentifier`.
+Build log must print `lid_backend SpeechBrainLanguageIdentifier`. Live logs: `IVR LID warmed class=SpeechBrainLanguageIdentifier backend=speechbrain`.
 
-After boot, live logs should include `IVR LID warmed backend=SpeechBrainLanguageIdentifier` (may appear a few seconds after `/health` is up). Phrase-cache warmup is also backgrounded: `IVR phrase cache warmed count=` may arrive after health is already green.
+Twilio Voice webhook: `https://<your-host>/voice/incoming` (HTTP POST).
 
-Wait until that LID line appears before the first real call if you can (first call during model load can stall).
+## Native Python (only if you cannot use Docker)
+
+1. **PYTHON_VERSION** = `3.12.8` (Torch has no 3.14 wheels).
+2. **Build command:** `pip install -r requirements-render.txt`
+3. **Start command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+4. **HF_HOME** = `/opt/render/project/src/.cache/huggingface`
+5. Remove `IVR_LID_FORCE_LANGUAGE` (or leave it empty). With SpeechBrain on, a leftover `en` value is ignored, but empty is clearer.
 
 ## After deploy: phone checks
 
-Twilio Voice webhook must stay `https://<your-host>/voice/incoming` (HTTP POST). Do not put `/media-stream` in the number config.
+VoxLingua107 identifies **many** spoken languages (not only English/French). Canned menus still have full text for English and French; other languages are detected, then the catalog may answer in English until those lines exist.
 
-On Render, speech **after** the menu is **scripted**: the app does not hear “balance”. It plays **balance**, then **goodbye**, each time you speak and then pause. (Windows grammar STT is local-only.)
-
-1. Open Render logs. Confirm `TTS spoken languages=` includes `en` and `fr`, STT backend is `ScriptedStreamingSpeechToText`, script is `balance,goodbye`, then `IVR LID warmed backend=SpeechBrainLanguageIdentifier`.
+1. Logs: `class=SpeechBrainLanguageIdentifier`, not `FixedLanguageIdentifier`.
 2. Trial Twilio: press any key if asked.
-3. **French LID:** at the first prompt, say a few seconds of **French**, then pause. Log should show `language_selected language=fr method=speech`. You should hear the French task menu (Edge `fr` voice), not English-accented French.
-4. **English LID:** new call, speak **English**, pause. Expect `language=en` and the English menu.
-5. **DTMF fallback:** new call, stay silent ~5s until the keypad menu. Keys follow the **caller’s country list** (not a global “2 = French”). Example: US number often `1` English, `4` French; a UK number’s list may not include French — use speech LID for French instead.
-6. After the task menu: **speak anything, pause** → fake-balance line. Speak/pause again → goodbye. Log: `placeholder_turn phrase=placeholder_balance` then `goodbye`, with `ttfb_ms=` (ear delay can be longer than that number).
-7. Hang up. Log: Media Stream `STOP`, no crash traceback.
+3. New call, speak **French**, pause → `language_selected language=fr method=speech`.
+4. New call, speak **English**, pause → `language=en`.
+5. After the task menu, speech is still **scripted** on Render (`balance` then `goodbye` on each pause). That is not LID.
 
-If French at the first prompt still selects English, the LID model did not load (`FixedLanguageIdentifier` in logs) or `IVR_LID_FORCE_LANGUAGE` is set.
-
+If you still see `fixed-fallback`, the build did not install Torch/SpeechBrain or the model download failed — use the Docker environment and a 2 GB instance.

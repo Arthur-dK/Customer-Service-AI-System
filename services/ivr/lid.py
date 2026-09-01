@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import importlib
 import logging
+import os
 import sys
 import time
 import warnings
@@ -222,21 +223,25 @@ class SpeechBrainLanguageIdentifier:
             except ImportError as exc:  # pragma: no cover - optional dependency
                 raise RuntimeError(
                     "speechbrain is not installed. Install optional IVR LID deps "
-                    "(requirements-ivr-lid.txt) or use FixedLanguageIdentifier."
+                    "(requirements-ivr-lid.txt or requirements-render.txt)."
                 ) from exc
 
+            savedir = _speechbrain_savedir(model_source)
             try:
+                savedir.mkdir(parents=True, exist_ok=True)
                 self._classifier = EncoderClassifier.from_hparams(
                     source=model_source,
+                    savedir=str(savedir),
                     run_opts={"device": device},
                 )
             except Exception as exc:  # pragma: no cover - platform/model load failures
                 raise RuntimeError(
-                    f"Failed to load SpeechBrain LID model '{model_source}': {exc}. "
-                    "Fixed LID remains available as fallback."
+                    f"Failed to load SpeechBrain LID model '{model_source}' "
+                    f"(savedir={savedir}): {exc}."
                 ) from exc
         self.model_source = model_source
         self.device = device
+        self.backend = "speechbrain"
 
     async def identify(
         self,
@@ -314,27 +319,41 @@ class SpeechBrainLanguageIdentifier:
         )
 
 
+def _speechbrain_savedir(model_source: str) -> Path:
+    root = Path(os.environ.get("HF_HOME") or (Path(".cache") / "huggingface"))
+    return root / "ivr-lid" / model_source.replace("/", "--")
+
+
 def build_default_lid(
     prefer_speechbrain: bool = True,
     force_language: str | None = None,
     speechbrain_model: str = DEFAULT_SPEECHBRAIN_MODEL,
 ) -> LanguageIdentifier:
-    if force_language:
-        logger.info("Using fixed LID language override: %s", force_language)
-        return FixedLanguageIdentifier(language=force_language)
+    force = (force_language or "").strip() or None
+    if force and not prefer_speechbrain:
+        logger.info("Using fixed LID language override: %s", force)
+        return FixedLanguageIdentifier(language=force)
+
+    if force and prefer_speechbrain:
+        logger.warning(
+            "Ignoring IVR_LID_FORCE_LANGUAGE=%s because SpeechBrain LID is enabled",
+            force,
+        )
 
     if prefer_speechbrain:
         try:
             lid = SpeechBrainLanguageIdentifier(model_source=speechbrain_model)
             logger.info("Using SpeechBrain LID model=%s", speechbrain_model)
             return lid
-        except Exception as exc:  # pragma: no cover - optional dependency path
-            logger.warning("SpeechBrain LID unavailable (%s); using fixed English LID", exc)
+        except Exception:  # pragma: no cover - optional dependency path
+            logger.exception(
+                "SpeechBrain LID failed to load; spoken language will be treated as English "
+                "until the model is available"
+            )
 
     logger.warning(
-        "Using fixed English LID fallback with high confidence. "
-        "Install requirements-ivr-lid.txt or set IVR_LID_FORCE_LANGUAGE. "
-        "Any detected speech will be treated as English until real LID is configured."
+        "Using fixed English LID fallback. Spoken audio is not identified. "
+        "On Render install requirements-render.txt (or the Docker image) with Python 3.12."
     )
     return FixedLanguageIdentifier(language="en", confidence=0.99, backend="fixed-fallback")
 

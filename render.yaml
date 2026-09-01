@@ -1,14 +1,10 @@
-# Render web service (optional Blueprint). If the service already exists, copy
-# buildCommand, startCommand, PYTHON_VERSION, and HF_HOME into the dashboard.
+# Render web service. Prefer Docker so SpeechBrain LID always installs (Python 3.12).
 services:
   - type: web
     name: customer-service-ai-system
-    runtime: python
-    buildCommand: export HF_HOME="${HF_HOME:-/opt/render/project/src/.cache/huggingface}" && pip install -r requirements-render.txt && PYTHONPATH=. python -c "from services.ivr.lid import build_default_lid; print('lid_backend', type(build_default_lid()).__name__)"
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    runtime: docker
+    dockerfilePath: ./Dockerfile
     envVars:
-      - key: PYTHON_VERSION
-        value: "3.12.8"
       - key: HF_HOME
         value: /opt/render/project/src/.cache/huggingface
       - key: IVR_USE_SPEECHBRAIN_LID

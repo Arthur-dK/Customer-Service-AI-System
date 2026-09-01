@@ -43,7 +43,11 @@ async def lifespan(_app: FastAPI):
     async def _warm_lid() -> None:
         try:
             lid = await asyncio.to_thread(get_lid)
-            log.info("IVR LID warmed backend=%s", type(lid).__name__)
+            log.info(
+                "IVR LID warmed class=%s backend=%s",
+                type(lid).__name__,
+                getattr(lid, "backend", type(lid).__name__),
+            )
         except Exception:
             log.exception("IVR LID warmup failed; first call may be slow")
 

@@ -12,3 +12,10 @@ pytest-asyncio>=0.23.0
 numpy>=1.26.0
 ollama>=0.1.7
 phonenumbers>=8.13.0
+huggingface_hub>=0.23.0
+
+# Linux/Render default pip: install SpeechBrain LID (skipped on Windows).
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.5.1+cpu; sys_platform == "linux"
+torchaudio==2.5.1+cpu; sys_platform == "linux"
+speechbrain>=1.0.0,<2; sys_platform == "linux"
