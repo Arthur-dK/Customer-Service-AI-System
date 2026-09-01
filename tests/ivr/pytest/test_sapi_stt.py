@@ -65,10 +65,33 @@ async def test_grammar_stt_empty_audio_still_calls_recognizer():
 
 
 def test_sapi_backend_uses_grammar_stt_even_if_script_present():
+    import sys
+
     stt = build_default_streaming_stt(finals=["balance"], backend="sapi")
-    assert isinstance(stt, GrammarStreamingSpeechToText)
+    if sys.platform.startswith("win"):
+        assert isinstance(stt, GrammarStreamingSpeechToText)
+    else:
+        from services.ivr.streaming_stt import ScriptedStreamingSpeechToText
+
+        assert isinstance(stt, ScriptedStreamingSpeechToText)
+
+
+def test_sapi_backend_on_linux_uses_scripted_stub(monkeypatch):
+    import services.ivr.streaming_stt as stt_mod
+    from services.ivr.streaming_stt import ScriptedStreamingSpeechToText
+
+    monkeypatch.setattr(stt_mod.sys, "platform", "linux")
+    stt = build_default_streaming_stt(finals=["balance"], backend="sapi")
+    assert isinstance(stt, ScriptedStreamingSpeechToText)
 
 
 def test_build_default_stt_sapi_when_no_script():
+    import sys
+
     stt = build_default_streaming_stt(finals=[], backend="sapi")
-    assert isinstance(stt, GrammarStreamingSpeechToText)
+    if sys.platform.startswith("win"):
+        assert isinstance(stt, GrammarStreamingSpeechToText)
+    else:
+        from services.ivr.streaming_stt import ScriptedStreamingSpeechToText
+
+        assert isinstance(stt, ScriptedStreamingSpeechToText)

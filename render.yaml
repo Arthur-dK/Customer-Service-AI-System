@@ -1,0 +1,19 @@
+# Render web service. Prefer Docker so SpeechBrain LID always installs (Python 3.12).
+services:
+  - type: web
+    name: customer-service-ai-system
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: HF_HOME
+        value: /opt/render/project/src/.cache/huggingface
+      - key: IVR_USE_SPEECHBRAIN_LID
+        value: "true"
+      - key: IVR_STT_BACKEND
+        value: scripted
+      - key: IVR_STT_SCRIPT
+        value: balance,goodbye
+      - key: IVR_PLAYBACK_REALTIME
+        value: "false"
+      - key: TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD
+        value: "1"

@@ -1,14 +1,23 @@
 """Shared FastAPI / IVR dependencies."""
 
+import threading
 from functools import lru_cache
 
 from core.config import settings
-from services.ivr.lid import LanguageIdentifier, build_default_lid
+from services.ivr.lid import (
+    LanguageIdentifier,
+    SpeechBrainLanguageIdentifier,
+    build_default_lid,
+    speechbrain_available,
+)
 from services.ivr.phrase_cache import PhraseAudioCache
 from services.ivr.streaming_stt import StreamingSpeechToText, build_default_streaming_stt, parse_stt_script
 from services.ivr.streaming_tts import StreamingTextToSpeech, build_default_streaming_tts
 from services.ivr.tts import TextToSpeech, build_default_tts
 from services.ivr.vad import VadConfig
+
+_lid_lock = threading.Lock()
+_lid_ready: LanguageIdentifier | None = None
 
 
 @lru_cache(maxsize=1)
@@ -18,16 +27,28 @@ def get_tts() -> TextToSpeech:
         piper_bin=settings.IVR_PIPER_BIN,
         piper_voices=settings.IVR_PIPER_VOICES,
         piper_voice_dir=settings.IVR_PIPER_VOICE_DIR,
+        use_edge=settings.IVR_USE_EDGE_TTS,
     )
 
 
-@lru_cache(maxsize=1)
 def get_lid() -> LanguageIdentifier:
-    return build_default_lid(
-        prefer_speechbrain=settings.IVR_USE_SPEECHBRAIN_LID,
-        force_language=settings.IVR_LID_FORCE_LANGUAGE,
-        speechbrain_model=settings.IVR_SPEECHBRAIN_MODEL,
-    )
+    """Prefer a live SpeechBrain model. Do not cache a Fixed English fallback forever."""
+    global _lid_ready
+    if _lid_ready is not None:
+        return _lid_ready
+    with _lid_lock:
+        if _lid_ready is not None:
+            return _lid_ready
+        lid = build_default_lid(
+            prefer_speechbrain=settings.IVR_USE_SPEECHBRAIN_LID,
+            force_language=settings.IVR_LID_FORCE_LANGUAGE,
+            speechbrain_model=settings.IVR_SPEECHBRAIN_MODEL,
+        )
+        if isinstance(lid, SpeechBrainLanguageIdentifier):
+            _lid_ready = lid
+        elif not settings.IVR_USE_SPEECHBRAIN_LID or not speechbrain_available():
+            _lid_ready = lid
+        return lid
 
 
 def get_vad_config() -> VadConfig:

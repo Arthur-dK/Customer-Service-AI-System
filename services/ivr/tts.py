@@ -312,6 +312,7 @@ def build_default_tts(
     *,
     piper_voices: str | None = None,
     piper_voice_dir: str | None = None,
+    use_edge: bool | None = None,
     cache: bool = True,
     cache_dir: Path | None = DEFAULT_TTS_CACHE_DIR,
 ) -> TextToSpeech:
@@ -335,6 +336,18 @@ def build_default_tts(
             spoken,
         )
         backends.append(sapi)
+    want_edge = (not sys.platform.startswith("win")) if use_edge is None else bool(use_edge)
+    if want_edge:
+        from services.ivr.edge_tts import EdgeTextToSpeech, edge_tts_available
+
+        if edge_tts_available():
+            logger.info("Using Edge neural TTS (network) for languages without a local voice")
+            backends.append(EdgeTextToSpeech())
+        else:
+            logger.warning(
+                "IVR_USE_EDGE_TTS requested but edge-tts/miniaudio are not installed; "
+                "Linux hosts will use tones. pip install edge-tts miniaudio"
+            )
     if not backends:
         logger.warning(
             "No speech TTS configured — using tone stub. "
@@ -412,16 +425,27 @@ def list_spoken_languages(tts: TextToSpeech) -> tuple[str, ...]:
         return tuple(sorted({voice.language for voice in inner.voices}))
     if isinstance(inner, PiperTextToSpeech):
         return (inner.language,)
+    from services.ivr.edge_tts import EDGE_VOICES, EdgeTextToSpeech
+
+    if isinstance(inner, EdgeTextToSpeech):
+        return tuple(sorted(EDGE_VOICES))
     return tuple()
 
 
-async def warm_language_selection_prompts(tts: TextToSpeech) -> int:
-    """Pre-synthesize static language-selection prompts the backend can speak."""
+async def warm_language_selection_prompts(
+    tts: TextToSpeech,
+    languages: tuple[str, ...] | None = None,
+) -> int:
+    """Pre-synthesize the usual IVR prompt languages (not every file in prompts.json)."""
     from core.language.countries import load_prompts
+    from core.language.phrases import load_phrase_catalog
 
+    prompts = load_prompts()
+    langs = languages if languages is not None else load_phrase_catalog().warmup_languages
     warmed = 0
-    for language, text in load_prompts().items():
-        if not tts.supports_language(language):
+    for language in langs:
+        text = prompts.get(language)
+        if not text or not tts.supports_language(language):
             continue
         await tts.synthesize(text, language)
         warmed += 1
