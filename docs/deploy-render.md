@@ -22,6 +22,7 @@ IVR_STT_BACKEND=scripted
 IVR_STT_SCRIPT=balance,goodbye
 IVR_PLAYBACK_REALTIME=false
 DEBUG=true
+TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
 ```
 
 Build log must print `lid_backend SpeechBrainLanguageIdentifier`. Live logs: `IVR LID warmed class=SpeechBrainLanguageIdentifier backend=speechbrain`.

@@ -9,9 +9,10 @@ import os
 import sys
 import time
 import warnings
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Iterator, Protocol
 
 import numpy as np
 
@@ -200,6 +201,51 @@ def _patch_speechbrain_windows_lazy_imports() -> None:
     iu.DeprecatedModuleRedirect.ensure_module = deprecated_ensure_module  # type: ignore[method-assign]
 
 
+@contextmanager
+def _speechbrain_checkpoint_load() -> Iterator[None]:
+    """Torch 2.6+ defaults torch.load(weights_only=True), which breaks SpeechBrain checkpoints."""
+    import torch
+
+    original = torch.load
+
+    def load_checkpoint(*args: Any, **kwargs: Any) -> Any:
+        kwargs.setdefault("weights_only", False)
+        return original(*args, **kwargs)
+
+    torch.load = load_checkpoint  # type: ignore[method-assign]
+    try:
+        yield
+    finally:
+        torch.load = original  # type: ignore[method-assign]
+
+
+def _load_speechbrain_classifier(model_source: str, device: str) -> Any:
+    from speechbrain.inference.classifiers import EncoderClassifier  # type: ignore
+
+    savedir = _speechbrain_savedir(model_source)
+    savedir.mkdir(parents=True, exist_ok=True)
+    source: str = model_source
+    if not (savedir / "hyperparams.yaml").is_file():
+        try:
+            from huggingface_hub import snapshot_download
+
+            snapshot_download(repo_id=model_source, local_dir=str(savedir))
+        except Exception as exc:
+            logger.warning(
+                "huggingface_hub snapshot_download failed for %s (%s); SpeechBrain will fetch",
+                model_source,
+                exc,
+            )
+    if (savedir / "hyperparams.yaml").is_file():
+        source = str(savedir)
+    with _speechbrain_checkpoint_load():
+        return EncoderClassifier.from_hparams(
+            source=source,
+            savedir=str(savedir),
+            run_opts={"device": device},
+        )
+
+
 class SpeechBrainLanguageIdentifier:
     """
     Dedicated audio language-ID via SpeechBrain (VoxLingua107 ECAPA by default).
@@ -219,22 +265,17 @@ class SpeechBrainLanguageIdentifier:
         else:
             _patch_speechbrain_windows_lazy_imports()
             try:
-                from speechbrain.inference.classifiers import EncoderClassifier  # type: ignore
+                import speechbrain  # noqa: F401
             except ImportError as exc:  # pragma: no cover - optional dependency
                 raise RuntimeError(
                     "speechbrain is not installed. Install optional IVR LID deps "
                     "(requirements-ivr-lid.txt or requirements-render.txt)."
                 ) from exc
 
-            savedir = _speechbrain_savedir(model_source)
             try:
-                savedir.mkdir(parents=True, exist_ok=True)
-                self._classifier = EncoderClassifier.from_hparams(
-                    source=model_source,
-                    savedir=str(savedir),
-                    run_opts={"device": device},
-                )
+                self._classifier = _load_speechbrain_classifier(model_source, device)
             except Exception as exc:  # pragma: no cover - platform/model load failures
+                savedir = _speechbrain_savedir(model_source)
                 raise RuntimeError(
                     f"Failed to load SpeechBrain LID model '{model_source}' "
                     f"(savedir={savedir}): {exc}."
@@ -345,15 +386,18 @@ def build_default_lid(
             lid = SpeechBrainLanguageIdentifier(model_source=speechbrain_model)
             logger.info("Using SpeechBrain LID model=%s", speechbrain_model)
             return lid
-        except Exception:  # pragma: no cover - optional dependency path
-            logger.exception(
-                "SpeechBrain LID failed to load; spoken language will be treated as English "
-                "until the model is available"
+        except Exception as exc:  # pragma: no cover - optional dependency path
+            logger.exception("SpeechBrain LID failed to load")
+            logger.warning(
+                "Using fixed English LID fallback (%s: %s). Spoken audio is not identified.",
+                type(exc).__name__,
+                exc,
             )
+            return FixedLanguageIdentifier(language="en", confidence=0.99, backend="fixed-fallback")
 
     logger.warning(
-        "Using fixed English LID fallback. Spoken audio is not identified. "
-        "On Render install requirements-render.txt (or the Docker image) with Python 3.12."
+        "Using fixed English LID because SpeechBrain is disabled. "
+        "Set IVR_USE_SPEECHBRAIN_LID=true on Render."
     )
     return FixedLanguageIdentifier(language="en", confidence=0.99, backend="fixed-fallback")
 

@@ -8,7 +8,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/opt/render/project/src \
     HF_HOME=/opt/render/project/src/.cache/huggingface \
     IVR_USE_SPEECHBRAIN_LID=true \
-    IVR_LID_FORCE_LANGUAGE=
+    IVR_LID_FORCE_LANGUAGE= \
+    TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libgomp1 \

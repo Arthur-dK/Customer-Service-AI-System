@@ -15,5 +15,5 @@ services:
         value: balance,goodbye
       - key: IVR_PLAYBACK_REALTIME
         value: "false"
-      - key: DEBUG
-        value: "true"
+      - key: TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD
+        value: "1"

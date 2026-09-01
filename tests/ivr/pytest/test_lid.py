@@ -104,6 +104,23 @@ def test_build_default_lid_falls_back_without_speechbrain():
     assert lid.confidence >= 0.15
 
 
+def test_speechbrain_checkpoint_load_defaults_weights_only_false(monkeypatch):
+    import torch
+
+    from services.ivr.lid import _speechbrain_checkpoint_load
+
+    seen: dict[str, object] = {}
+
+    def fake_load(*_args, **kwargs):
+        seen.update(kwargs)
+        return {"ok": True}
+
+    monkeypatch.setattr(torch, "load", fake_load)
+    with _speechbrain_checkpoint_load():
+        torch.load("checkpoint.pt")
+    assert seen.get("weights_only") is False
+
+
 def test_build_default_lid_falls_back_when_speechbrain_load_fails(monkeypatch):
     def _boom(*_args, **_kwargs):
         raise RuntimeError("simulated SpeechBrain model load failure")
