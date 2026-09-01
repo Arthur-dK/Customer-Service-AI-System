@@ -1,4 +1,4 @@
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 import asyncio
 import logging
 
@@ -19,18 +19,7 @@ logging.basicConfig(
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     log = logging.getLogger(__name__)
-    # Pay Windows SAPI/PowerShell cost once at boot so the first live prompt is instant.
-    try:
-        await warm_language_selection_prompts(get_tts())
-    except Exception:
-        log.exception("TTS prompt warmup failed; first call may be slow")
     log.info("TTS spoken languages=%s", list_spoken_languages(get_tts()))
-
-    try:
-        warmed = await get_phrase_cache().warmup()
-        log.info("IVR phrase cache warmed count=%s", warmed)
-    except Exception:
-        log.exception("IVR phrase cache warmup failed; canned lines may synth on first use")
 
     script = parse_stt_script(settings.IVR_STT_SCRIPT)
     stt = get_streaming_stt()
@@ -40,13 +29,35 @@ async def lifespan(_app: FastAPI):
         script or "(none)",
     )
 
-    # Load SpeechBrain (or fixed LID) once at boot — first-call get_lid() was ~11s on a live call.
-    try:
-        lid = await asyncio.to_thread(get_lid)
-        log.info("IVR LID warmed backend=%s", type(lid).__name__)
-    except Exception:
-        log.exception("IVR LID warmup failed; first call may be slow")
+    async def _warm_audio() -> None:
+        try:
+            await warm_language_selection_prompts(get_tts())
+        except Exception:
+            log.exception("TTS prompt warmup failed; first call may be slow")
+        try:
+            warmed = await get_phrase_cache().warmup()
+            log.info("IVR phrase cache warmed count=%s", warmed)
+        except Exception:
+            log.exception("IVR phrase cache warmup failed; canned lines may synth on first use")
+
+    async def _warm_lid() -> None:
+        try:
+            lid = await asyncio.to_thread(get_lid)
+            log.info("IVR LID warmed backend=%s", type(lid).__name__)
+        except Exception:
+            log.exception("IVR LID warmup failed; first call may be slow")
+
+    # Do not block /health on Edge TTS or Hugging Face (Render health checks).
+    warmup_tasks = (
+        asyncio.create_task(_warm_audio()),
+        asyncio.create_task(_warm_lid()),
+    )
     yield
+    for task in warmup_tasks:
+        task.cancel()
+    for task in warmup_tasks:
+        with suppress(asyncio.CancelledError):
+            await task
 
 
 app = FastAPI(

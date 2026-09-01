@@ -432,13 +432,20 @@ def list_spoken_languages(tts: TextToSpeech) -> tuple[str, ...]:
     return tuple()
 
 
-async def warm_language_selection_prompts(tts: TextToSpeech) -> int:
-    """Pre-synthesize static language-selection prompts the backend can speak."""
+async def warm_language_selection_prompts(
+    tts: TextToSpeech,
+    languages: tuple[str, ...] | None = None,
+) -> int:
+    """Pre-synthesize the usual IVR prompt languages (not every file in prompts.json)."""
     from core.language.countries import load_prompts
+    from core.language.phrases import load_phrase_catalog
 
+    prompts = load_prompts()
+    langs = languages if languages is not None else load_phrase_catalog().warmup_languages
     warmed = 0
-    for language, text in load_prompts().items():
-        if not tts.supports_language(language):
+    for language in langs:
+        text = prompts.get(language)
+        if not text or not tts.supports_language(language):
             continue
         await tts.synthesize(text, language)
         warmed += 1

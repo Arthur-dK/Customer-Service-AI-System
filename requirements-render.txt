@@ -1,0 +1,5 @@
+# Render (Linux) install: app deps + CPU Torch + SpeechBrain LID.
+# Local Windows can keep: pip install -r requirements.txt
+--extra-index-url https://download.pytorch.org/whl/cpu
+-r requirements.txt
+-r requirements-ivr-lid.txt

@@ -87,3 +87,33 @@ def test_build_default_tts_on_windows_includes_spoken_english():
     wrapped = build_default_tts(cache=True)
     assert isinstance(wrapped, CachedTextToSpeech)
     assert wrapped.supports_language("en") is True
+
+
+@pytest.mark.asyncio
+async def test_warm_language_selection_prompts_uses_catalog_languages(monkeypatch):
+    from core.language.phrases import PhraseCatalog
+    from services.ivr.tts import warm_language_selection_prompts
+
+    spoken: list[str] = []
+
+    class SpyTone(ToneTextToSpeech):
+        async def synthesize(self, text: str, language: str) -> bytes:
+            spoken.append(language)
+            return await super().synthesize(text, language)
+
+    monkeypatch.setattr(
+        "core.language.countries.load_prompts",
+        lambda: {
+            "en": "Please say the language.",
+            "fr": "Veuillez dire la langue.",
+            "he": "should not warm",
+            "ar": "should not warm",
+        },
+    )
+    monkeypatch.setattr(
+        "core.language.phrases.load_phrase_catalog",
+        lambda: PhraseCatalog(warmup_languages=("en", "fr"), phrases={}),
+    )
+    n = await warm_language_selection_prompts(SpyTone())
+    assert n == 2
+    assert spoken == ["en", "fr"]

@@ -8,12 +8,16 @@ not inspect audio and does not use the network.
 
 from __future__ import annotations
 
+import logging
+import sys
 from dataclasses import dataclass
 from typing import Protocol
 
 from services.ivr.audio import chunk_mulaw
 from services.ivr.ttfb import TtfbHarness
 from services.ivr.vad import EnergyVad, VadEvent
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -89,9 +93,14 @@ def build_default_streaming_stt(
     *,
     backend: str | None = None,
 ) -> StreamingSpeechToText:
-    """``sapi`` uses Windows grammar STT. Anything else uses the scripted stub."""
+    """``sapi`` uses Windows grammar STT. Linux/Render always uses the scripted stub."""
     script = list(finals if finals is not None else ())
     kind = (backend or "scripted").strip().lower()
+    if kind == "sapi" and not sys.platform.startswith("win"):
+        logger.warning(
+            "IVR_STT_BACKEND=sapi is Windows-only; using scripted STT on this host"
+        )
+        kind = "scripted"
     if kind == "sapi":
         from services.ivr.sapi_stt import GrammarStreamingSpeechToText
 
