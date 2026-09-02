@@ -27,6 +27,9 @@ dev = [
 pythonpath = ["."]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "slow: optional tests that download or run large local models",
+]
 
 [tool.vercel]
 entrypoint = "app.main:app"

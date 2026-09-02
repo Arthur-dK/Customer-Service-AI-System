@@ -5,7 +5,7 @@
 | **Feature ID** | FEAT-04 |
 | **Name** | Local semantic intent router, stub caller store, privacy |
 | **Branch** | `feat/ivr-intent-router` |
-| **Status** | Phase 1 done. Phases 2–8 not started. |
+| **Status** | Phase 1–2 done. Phases 3–8 not started. |
 | **Target** | Route spoken requests to stub card actions; identify callers by phone number; never record call audio |
 
 Every FEAT file must include a **User experience** section (what the caller hears and does, and what the feature does not do).
@@ -63,8 +63,8 @@ Each phase has its own tests. Do not treat a later phase as done if an earlier p
 ### Phase 2 — Semantic router
 
 - **Goal:** Text → one of six actions or reject.
-- **Delivered:** prototypes JSON; intent router module; **ADR-021**.
-- **Tests:** `tests/ivr/pytest/test_intent_router.py` (fake embedder). Optional `@slow` real BGE-M3.
+- **Delivered:** `core/intents/`; [ADR-021](../adr/ADR-021.md).
+- **Tests:** `tests/intents/test_intent_router.py` (hash embedder). Optional `@slow` real BGE-M3.
 - **Done when:** EN/HE/AR paraphrases route; ambiguous two-intent text rejects.
 
 ### Phase 3 — Privacy
@@ -118,7 +118,7 @@ Do not add these files until the phase that needs them.
 | ADR | Title | Phase |
 |-----|--------|-------|
 | [ADR-020](../adr/ADR-020.md) | Stub caller/card SQLite + gitignore overlay | 1 |
-| ADR-021 | BGE-M3 prototype router | 2 |
+| [ADR-021](../adr/ADR-021.md) | BGE-M3 prototype router | 2 |
 | ADR-022 | Privacy: in-memory audio, log redaction, no TwiML Record | 3 |
 | ADR-023 | faster-whisper on selected language, thread offload | 4 |
 | ADR-024 | GET vs two-step confirm + 2-fail DTMF | 5 |
@@ -144,7 +144,7 @@ Schema (one card, many phones): card last-4, fake balance, currency, blocked fla
 Commands land as each phase adds tests. After Phase 1:
 
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/cards/test_caller_store.py -q
+.\venv\Scripts\python.exe -m pytest tests/cards/test_caller_store.py tests/intents/test_intent_router.py -q
 ```
 
 ---

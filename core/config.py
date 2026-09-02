@@ -50,6 +50,12 @@ class Settings(BaseSettings):
     CALLERS_LOCAL_JSON: str | None = None
     CALLER_OVERRIDE_JSON: str | None = None
 
+    # Shared intent router (IVR, SMS, Email). fake = hash embedder (CI); bge = in-process BGE-M3.
+    INTENT_EMBEDDER: str = "fake"
+    INTENT_BGE_MODEL: str = "BAAI/bge-m3"
+    INTENT_MIN_SCORE: float = 0.28
+    INTENT_MARGIN: float = 0.04
+
     @field_validator("IVR_LID_FORCE_LANGUAGE", mode="before")
     @classmethod
     def _empty_force_language(cls, value: object) -> str | None:

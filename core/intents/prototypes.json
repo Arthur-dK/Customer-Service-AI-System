@@ -1,0 +1,34 @@
+{
+  "actions": {
+    "get_balance": {
+      "en": ["what is my balance", "how much money is left on the card"],
+      "he": ["מה היתרה שלי", "כמה כסף נשאר בכרטיס"],
+      "ar": ["ما هو رصيدي", "كم من المال تبقى على البطاقة"]
+    },
+    "get_pin": {
+      "en": ["send my pin by sms", "i need my pin number"],
+      "he": ["שלח לי את הקוד הסודי במסרון", "אני צריך את הקוד הסודי"],
+      "ar": ["أرسل الرقم السري برسالة", "أحتاج إلى الرقم السري"]
+    },
+    "get_card": {
+      "en": ["what are my card details", "which card do i have"],
+      "he": ["מה פרטי הכרטיס שלי", "איזה כרטיס יש לי"],
+      "ar": ["ما هي تفاصيل بطاقتي", "أي بطاقة لدي"]
+    },
+    "get_card_statement": {
+      "en": ["read my card statement", "i want the monthly statement"],
+      "he": ["תקרא לי את פירוט העסקאות", "אני רוצה את הדוח החודשי"],
+      "ar": ["اقرأ كشف حساب البطاقة", "أريد الكشف الشهري"]
+    },
+    "block_card": {
+      "en": ["block the card", "freeze my card please"],
+      "he": ["חסום את הכרטיס", "הקפא את הכרטיס בבקשה"],
+      "ar": ["أوقف البطاقة", "جمّد بطاقتي من فضلك"]
+    },
+    "unblock_card": {
+      "en": ["unblock the card", "unfreeze my card please"],
+      "he": ["בטל את חסימת הכרטיס", "שחרר את הכרטיס בבקשה"],
+      "ar": ["ألغِ إيقاف البطاقة", "ألغِ تجميد بطاقتي من فضلك"]
+    }
+  }
+}
