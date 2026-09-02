@@ -12,7 +12,7 @@ os.environ.setdefault("IVR_PLAYBACK_REALTIME", "false")
 os.environ.setdefault("IVR_USE_SPEECHBRAIN_LID", "false")
 os.environ.setdefault("IVR_LID_FORCE_LANGUAGE", "en")
 os.environ.setdefault("IVR_MIN_LID_CONFIDENCE", "0.1")
-os.environ.setdefault("IVR_VAD_RMS_THRESHOLD", "500")
+os.environ.setdefault("IVR_STT_BACKEND", "scripted")
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(_REPO_ROOT) not in sys.path:

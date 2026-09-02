@@ -92,8 +92,9 @@ def build_default_streaming_stt(
     finals: list[str] | None = None,
     *,
     backend: str | None = None,
+    whisper_model: str | None = None,
 ) -> StreamingSpeechToText:
-    """``sapi`` uses Windows grammar STT. Linux/Render always uses the scripted stub."""
+    """``sapi`` uses Windows grammar STT. ``whisper`` is local faster-whisper."""
     script = list(finals if finals is not None else ())
     kind = (backend or "scripted").strip().lower()
     if kind == "sapi" and not sys.platform.startswith("win"):
@@ -105,6 +106,10 @@ def build_default_streaming_stt(
         from services.ivr.sapi_stt import GrammarStreamingSpeechToText
 
         return GrammarStreamingSpeechToText()
+    if kind == "whisper":
+        from services.ivr.whisper_stt import WhisperStreamingSpeechToText
+
+        return WhisperStreamingSpeechToText(model_size=whisper_model or "base")
     return ScriptedStreamingSpeechToText(finals=script)
 
 

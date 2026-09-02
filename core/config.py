@@ -41,8 +41,9 @@ class Settings(BaseSettings):
     # Comma-separated stub transcripts for live smoke (e.g. "balance,goodbye").
     # Ignored when IVR_STT_BACKEND=sapi.
     IVR_STT_SCRIPT: str | None = None
-    # scripted (default, CI / Phase 7) | sapi (Windows grammar — hears balance/PIN/block/goodbye)
+    # scripted (default, CI) | sapi (Windows grammar) | whisper (local faster-whisper)
     IVR_STT_BACKEND: str = "scripted"
+    IVR_WHISPER_MODEL: str = "base"
 
     # Shared stub caller/card store (IVR, SMS, Email). PIN only via local overlay / env.
     CALLERS_SQLITE: str | None = None

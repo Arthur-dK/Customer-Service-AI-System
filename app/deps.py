@@ -69,4 +69,5 @@ def get_streaming_stt() -> StreamingSpeechToText:
     return build_default_streaming_stt(
         finals=parse_stt_script(settings.IVR_STT_SCRIPT),
         backend=settings.IVR_STT_BACKEND,
+        whisper_model=settings.IVR_WHISPER_MODEL,
     )
