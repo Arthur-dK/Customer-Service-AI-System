@@ -12,6 +12,22 @@ This is the process/runbook for the latency pipeline. Language selection remains
 
 ---
 
+## User experience
+
+Every FEAT document should include a section like this: what the caller hears and does, and what the feature does **not** do.
+
+After language is already chosen ([FEAT-02](FEAT-02.md)), this feature is what the caller **hears next** on a templated (not yet semantic) IVR:
+
+1. They hear a short **task menu** (for example: say balance, PIN, or block card). That menu does not start the “how fast did we answer?” clock.
+2. They speak a short command and pause. When their voice drops, the system treats that as the end of the sentence.
+3. They should hear a **canned reply start quickly** (target: typically under half a second after they stop, for warmed lines). Replies are placeholders (fake balance, fake PIN line, fake block) — not a live bank.
+4. Unknown wording gets a “sorry, I did not catch that” line. Saying goodbye can end the task loop on this branch.
+5. They should not hear a “one moment please” filler. They should not have language re-detected on every sentence.
+
+What this feature **does not** do: understand full-sentence paraphrases, Hebrew/Arabic task copy end-to-end, caller allowlisting, or two-step block confirmation. Those belong to [FEAT-04](FEAT-04.md).
+
+---
+
 ## Product lock-in (this branch)
 
 - **No LLM** on the call path. Replies are fixed lines or tiny placeholders that simulate tasks. The code should still leave a clear place to plug in generated speech later (5s TTFB budget, not 0.5s).

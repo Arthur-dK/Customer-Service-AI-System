@@ -25,6 +25,22 @@ Selection runs entirely on the bidirectional Media Stream WebSocket (not Twilio 
 
 ---
 
+## User experience
+
+Every FEAT document should include a section like this: what the caller hears and does, and what the feature does **not** do.
+
+What the **caller** goes through on this feature (before any card tasks):
+
+1. They dial the Twilio number. They do not hear a long “please wait” filler. The call connects to a live audio stream.
+2. They are asked (in a language suggested by their phone’s country) to **say the name of the language** they want.
+3. If they speak clearly, the system picks that language and continues. They should hear the rest of the IVR in that language when a matching voice exists.
+4. If they stay silent for a few seconds, they hear a **keypad menu** (press 1 for English, and so on). They may also **interrupt the menu by speaking**; speech wins over the keypad.
+5. If language ID is unsure, they are prompted again or dropped into the keypad path. The call does not yet ask for balance, PIN, or card actions — that is a later feature.
+
+What this feature **does not** do for the caller: identify them as a customer, read card data, or record the call to disk.
+
+---
+
 ## ADR correlation
 
 Every decision for this feature maps to an ADR. ADR-001 is the hosting prerequisite; ADR-002–010 were written for this language-selection work.
