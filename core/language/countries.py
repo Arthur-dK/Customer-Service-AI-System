@@ -10,10 +10,9 @@ from pathlib import Path
 import phonenumbers
 from phonenumbers.phonenumberutil import NumberParseException
 
-_DATA_DIR = Path(__file__).resolve().parent
+from core.language.constants import DEFAULT_FALLBACK_LANGUAGES, DEFAULT_PROMPT_LANGUAGE
 
-DEFAULT_FALLBACK_LANGUAGES: tuple[str, ...] = ("en", "es", "fr", "ar", "zh", "hi", "pt")
-DEFAULT_PROMPT_LANGUAGE = "en"
+_DATA_DIR = Path(__file__).resolve().parent
 
 
 @dataclass(frozen=True)

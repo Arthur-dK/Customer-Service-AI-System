@@ -8,7 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Mapping
 
-from core.language.countries import DEFAULT_PROMPT_LANGUAGE
+from core.language.constants import DEFAULT_PROMPT_LANGUAGE
 
 _DATA_PATH = Path(__file__).resolve().parent / "phrases.json"
 

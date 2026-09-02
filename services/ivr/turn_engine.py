@@ -191,10 +191,9 @@ class PlaceholderTurnEngine:
         )
         sample = self.ttfb.samples[-1] if self.ttfb.samples else None
         logger.info(
-            "placeholder_turn language=%s phrase=%s transcript=%r chunks=%s ttfb_ms=%s within_budget=%s",
+            "placeholder_turn language=%s phrase=%s chunks=%s ttfb_ms=%s within_budget=%s",
             self.language,
             phrase_id,
-            transcript.text,
             sent,
             None if sample is None else round(sample.ttfb_ms, 1),
             None if sample is None else sample.within_budget,

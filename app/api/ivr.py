@@ -14,6 +14,7 @@ from app.deps import (
     get_tts,
     get_vad_config,
 )
+from core.cards import last4_phone
 from core.config import settings
 from core.language import resolve_caller_locale
 from services.ivr.language_selection import CLEAR_AUDIO_SENTINEL, LanguageSelector
@@ -51,8 +52,8 @@ async def voice_webhook(request: Request):
         country_code=locale.country_code if locale.country_known else None,
     )
     logger.info(
-        "incoming_call from=%s country=%s known=%s languages=%s",
-        locale.e164 or caller_from,
+        "incoming_call from_last4=%s country=%s known=%s languages=%s",
+        last4_phone(locale.e164 or caller_from),
         locale.country_code,
         locale.country_known,
         list(locale.languages),
@@ -92,10 +93,9 @@ async def twilio_media_stream(websocket: WebSocket):
                     phone_number = custom.get("from") or custom.get("From")
                     start_event.set()
                     logger.info(
-                        "Twilio Media Stream START streamSid=%s from=%s custom=%s",
+                        "Twilio Media Stream START streamSid=%s from_last4=%s",
                         stream_sid,
-                        phone_number,
-                        custom,
+                        last4_phone(phone_number),
                     )
 
                 elif event_type == "media":

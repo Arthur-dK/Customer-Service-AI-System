@@ -17,6 +17,8 @@ def test_build_media_stream_connect_twiml_includes_caller_parameters():
     )
     assert 'name="from" value="+972501234567"' in twiml
     assert 'name="country_code" value="IL"' in twiml
+    assert "<Record" not in twiml
+    assert "<record" not in twiml.lower()
 
 
 def test_build_media_stream_connect_twiml_escapes_xml_special_chars():
@@ -27,3 +29,11 @@ def test_build_media_stream_connect_twiml_escapes_xml_special_chars():
     assert "&quot;" in twiml
     assert "&lt;" in twiml
     assert "&amp;" in twiml
+
+
+def test_build_media_stream_connect_twiml_never_records():
+    twiml = build_media_stream_connect_twiml("wss://example.com/media-stream")
+    assert "<Record" not in twiml
+    assert "recordingStatusCallback" not in twiml
+    assert twiml.count("<Connect>") == 1
+    assert twiml.count("<Stream") == 1

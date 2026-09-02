@@ -5,7 +5,7 @@
 | **Feature ID** | FEAT-04 |
 | **Name** | Local semantic intent router, stub caller store, privacy |
 | **Branch** | `feat/ivr-intent-router` |
-| **Status** | Phase 1–2 done. Phases 3–8 not started. |
+| **Status** | Phase 1–3 done. Phases 4–8 not started. |
 | **Target** | Route spoken requests to stub card actions; identify callers by phone number; never record call audio |
 
 Every FEAT file must include a **User experience** section (what the caller hears and does, and what the feature does not do).
@@ -70,8 +70,8 @@ Each phase has its own tests. Do not treat a later phase as done if an earlier p
 ### Phase 3 — Privacy
 
 - **Goal:** No call recording; no secrets in logs.
-- **Delivered:** last-4 log helper; TwiML has no `<Record>`; **ADR-022**.
-- **Tests:** `tests/ivr/pytest/test_privacy_ivr.py`; TwiML assertions.
+- **Delivered:** last-4 log helper on the live path; TwiML has no `<Record>`; [ADR-022](../adr/ADR-022.md).
+- **Tests:** `tests/ivr/pytest/test_privacy_ivr.py`; `tests/ivr/pytest/test_twiml.py`.
 - **Done when:** simulated call creates no `.wav`/`.mp3` under tmp; caplog has no PIN digit runs or full E.164.
 
 ### Phase 4 — Local full-sentence STT
@@ -119,7 +119,7 @@ Do not add these files until the phase that needs them.
 |-----|--------|-------|
 | [ADR-020](../adr/ADR-020.md) | Stub caller/card SQLite + gitignore overlay | 1 |
 | [ADR-021](../adr/ADR-021.md) | BGE-M3 prototype router | 2 |
-| ADR-022 | Privacy: in-memory audio, log redaction, no TwiML Record | 3 |
+| [ADR-022](../adr/ADR-022.md) | Privacy: in-memory audio, log redaction, no TwiML Record | 3 |
 | ADR-023 | faster-whisper on selected language, thread offload | 4 |
 | ADR-024 | GET vs two-step confirm + 2-fail DTMF | 5 |
 | ADR-025 | HE/AR catalog + Edge TTS warmup | 6 |
@@ -144,7 +144,7 @@ Schema (one card, many phones): card last-4, fake balance, currency, blocked fla
 Commands land as each phase adds tests. After Phase 1:
 
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/cards/test_caller_store.py tests/intents/test_intent_router.py -q
+.\venv\Scripts\python.exe -m pytest tests/cards/test_caller_store.py tests/intents/test_intent_router.py tests/ivr/pytest/test_privacy_ivr.py tests/ivr/pytest/test_twiml.py -q
 ```
 
 ---

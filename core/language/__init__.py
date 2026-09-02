@@ -1,8 +1,7 @@
 """Public language helpers."""
 
+from core.language.constants import DEFAULT_FALLBACK_LANGUAGES, DEFAULT_PROMPT_LANGUAGE
 from core.language.countries import (
-    DEFAULT_FALLBACK_LANGUAGES,
-    DEFAULT_PROMPT_LANGUAGE,
     CallerLocale,
     build_dtmf_menu_prompt,
     extract_country_code,

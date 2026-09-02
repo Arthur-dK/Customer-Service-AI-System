@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from core.language.countries import DEFAULT_PROMPT_LANGUAGE
+from core.language.constants import DEFAULT_PROMPT_LANGUAGE
 from core.language.phrases import PhraseCatalog, UnknownPhraseError, load_phrase_catalog
 from services.ivr.tts import TextToSpeech
 
