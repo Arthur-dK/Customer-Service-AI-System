@@ -1,0 +1,13 @@
+{
+  "cards": [
+    {
+      "card_id": "stub-card-demo",
+      "last4": "4242",
+      "balance_text": "one hundred US dollars",
+      "currency": "USD",
+      "blocked": false,
+      "statement": "March statement: two purchases totaling forty dollars.",
+      "phones": ["+15555550100", "+15555550101"]
+    }
+  ]
+}

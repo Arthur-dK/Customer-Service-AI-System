@@ -5,7 +5,7 @@
 | **Feature ID** | FEAT-04 |
 | **Name** | Local semantic intent router, stub caller store, privacy |
 | **Branch** | `feat/ivr-intent-router` |
-| **Status** | Phase 0 (documentation). Phases 1–8 not started. |
+| **Status** | Phase 1 done. Phases 2–8 not started. |
 | **Target** | Route spoken requests to stub card actions; identify callers by phone number; never record call audio |
 
 Every FEAT file must include a **User experience** section (what the caller hears and does, and what the feature does not do).
@@ -56,8 +56,8 @@ Each phase has its own tests. Do not treat a later phase as done if an earlier p
 ### Phase 1 — Stub caller/card store
 
 - **Goal:** Allowlist + fake card rows without PII in git.
-- **Delivered:** `services/cards/`; `data/callers.example.json`; gitignore overlay/sqlite; **ADR-020** (written in this phase).
-- **Tests:** `tests/ivr/pytest/test_caller_store.py`.
+- **Delivered:** `core/cards/`; `data/callers.example.json`; gitignore overlay/sqlite; [ADR-020](../adr/ADR-020.md).
+- **Tests:** `tests/cards/test_caller_store.py`.
 - **Done when:** hit/miss, multi-phone, withheld; example JSON has no `pin` and only reserved test numbers.
 
 ### Phase 2 — Semantic router
@@ -117,7 +117,7 @@ Do not add these files until the phase that needs them.
 
 | ADR | Title | Phase |
 |-----|--------|-------|
-| ADR-020 | Stub caller/card SQLite + gitignore overlay | 1 |
+| [ADR-020](../adr/ADR-020.md) | Stub caller/card SQLite + gitignore overlay | 1 |
 | ADR-021 | BGE-M3 prototype router | 2 |
 | ADR-022 | Privacy: in-memory audio, log redaction, no TwiML Record | 3 |
 | ADR-023 | faster-whisper on selected language, thread offload | 4 |
@@ -132,7 +132,7 @@ Do not add these files until the phase that needs them.
 data/callers.example.json   # committed: fake numbers only, no real PII, no real PINs
 data/callers.local.json     # gitignored: you add your real From + stub card/PIN locally
 data/callers.sqlite         # gitignored: built at boot from example + local overlay
-IVR_CALLER_OVERRIDE_JSON    # Render secret env: same overlay without committing files
+CALLER_OVERRIDE_JSON        # Render secret env: same overlay without committing files
 ```
 
 Schema (one card, many phones): card last-4, fake balance, currency, blocked flag, short statement blurb; PIN **only** from local overlay. Tests use tmp SQLite + fake `+15555550100`-style numbers.
@@ -144,14 +144,14 @@ Schema (one card, many phones): card last-4, fake balance, currency, blocked fla
 Commands land as each phase adds tests. After Phase 1:
 
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/ivr/pytest/test_caller_store.py -q
+.\venv\Scripts\python.exe -m pytest tests/cards/test_caller_store.py -q
 ```
 
 ---
 
 ## Phase 8 live smoke runbook (fill in when that phase ships)
 
-1. Overlay: put your E.164 in `data/callers.local.json` or `IVR_CALLER_OVERRIDE_JSON` (never commit it).
+1. Overlay: put your E.164 in `data/callers.local.json` or `CALLER_OVERRIDE_JSON` (never commit it).
 2. `IVR_STT_BACKEND=whisper`, `IVR_INTENT_EMBEDDER=bge`.
 3. Unknown number: refusal, then hang up. Log `from=` shows **last-4 only**.
 4. Allowlisted number: language select, then six-action menu. Ask for balance in a paraphrase; hear stub balance text (no real issuer).

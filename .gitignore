@@ -17,6 +17,10 @@ htmlcov/
 scratch/
 .cache/
 
+# Stub caller DB (may contain operator numbers / PINs)
+data/callers.sqlite
+data/callers.local.json
+
 # IDE & OS
 .vscode/
 .idea/

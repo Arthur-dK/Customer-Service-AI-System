@@ -44,6 +44,12 @@ class Settings(BaseSettings):
     # scripted (default, CI / Phase 7) | sapi (Windows grammar — hears balance/PIN/block/goodbye)
     IVR_STT_BACKEND: str = "scripted"
 
+    # Shared stub caller/card store (IVR, SMS, Email). PIN only via local overlay / env.
+    CALLERS_SQLITE: str | None = None
+    CALLERS_EXAMPLE_JSON: str | None = None
+    CALLERS_LOCAL_JSON: str | None = None
+    CALLER_OVERRIDE_JSON: str | None = None
+
     @field_validator("IVR_LID_FORCE_LANGUAGE", mode="before")
     @classmethod
     def _empty_force_language(cls, value: object) -> str | None:
