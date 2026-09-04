@@ -1,66 +1,102 @@
 {
-  "warmup_languages": ["en", "fr"],
+  "warmup_languages": ["en", "he", "ar"],
   "phrases": {
     "language_select": {
       "en": "Please say the name of the language you would like to use.",
-      "fr": "Veuillez dire le nom de la langue que vous souhaitez utiliser."
+      "fr": "Veuillez dire le nom de la langue que vous souhaitez utiliser.",
+      "he": "אנא אמרו את שם השפה שבה תרצו להשתמש.",
+      "ar": "يرجى قول اسم اللغة التي تريدون استخدامها."
     },
     "did_not_catch": {
       "en": "Sorry, I did not catch that. Please try again.",
-      "fr": "Désolé, je n'ai pas compris. Veuillez réessayer."
+      "fr": "Désolé, je n'ai pas compris. Veuillez réessayer.",
+      "he": "סליחה, לא הבנתי. נסו שוב.",
+      "ar": "عذرا، لم أفهم. يرجى المحاولة مرة أخرى."
     },
     "main_menu": {
-      "en": "You can say balance, PIN, or block card. You can also say goodbye.",
-      "fr": "Vous pouvez dire solde, code PIN, ou bloquer la carte. Vous pouvez aussi dire au revoir."
+      "en": "You can ask for balance, PIN by SMS, card details, statement, block card, or unblock card.",
+      "fr": "Vous pouvez demander le solde, le code PIN par SMS, les détails de la carte, le relevé, bloquer la carte, ou débloquer la carte.",
+      "he": "אפשר לבקש יתרה, קוד סודי במסרון, פרטי כרטיס, פירוט, חסימת כרטיס או שחרור חסימה.",
+      "ar": "يمكنكم طلب الرصيد، أو الرمز السري برسالة نصية، أو بيانات البطاقة، أو الكشف، أو تجميد البطاقة، أو إلغاء التجميد."
     },
     "placeholder_balance": {
       "en": "Your available balance is one hundred dollars. This is a placeholder.",
-      "fr": "Votre solde disponible est de cent dollars. Ceci est un exemple."
+      "fr": "Votre solde disponible est de cent dollars. Ceci est un exemple.",
+      "he": "היתרה הזמינה שלכם היא מאה דולר. זהו משפט לדוגמה.",
+      "ar": "رصيدكم المتاح هو مائة دولار. هذا مثال فقط."
     },
     "placeholder_pin": {
-      "en": "Your PIN is one two three four. This is a placeholder.",
-      "fr": "Votre code PIN est un deux trois quatre. Ceci est un exemple."
+      "en": "We will send your PIN by SMS. We never speak your PIN on this call.",
+      "fr": "Nous enverrons votre code PIN par SMS. Nous ne prononçons jamais votre code PIN pendant cet appel.",
+      "he": "נשלח את הקוד הסודי שלכם במסרון. אנחנו אף פעם לא אומרים את הקוד הסודי בשיחה הזו.",
+      "ar": "سنرسل رمزكم السري عبر رسالة نصية. لن ننطق الرمز السري في هذه المكالمة أبدا."
     },
     "placeholder_blocked": {
       "en": "Your card has been blocked. This is a placeholder.",
-      "fr": "Votre carte a été bloquée. Ceci est un exemple."
+      "fr": "Votre carte a été bloquée. Ceci est un exemple.",
+      "he": "הכרטיס שלכם נחסם. זהו משפט לדוגמה.",
+      "ar": "تم تجميد بطاقتكم. هذا مثال فقط."
     },
     "unknown_caller": {
-      "en": "We cannot identify this phone number. Goodbye."
+      "en": "We cannot identify this phone number. Goodbye.",
+      "he": "לא ניתן לזהות את מספר הטלפון הזה. להתראות.",
+      "ar": "لا يمكننا التعرف على رقم الهاتف هذا. مع السلامة."
     },
     "pin_via_sms": {
-      "en": "We will send your PIN by SMS. We never speak your PIN on this call."
+      "en": "We will send your PIN by SMS. We never speak your PIN on this call.",
+      "he": "נשלח את הקוד הסודי שלכם במסרון. אנחנו אף פעם לא אומרים את הקוד הסודי בשיחה הזו.",
+      "ar": "سنرسل رمزكم السري عبر رسالة نصية. لن ننطق الرمز السري في هذه المكالمة أبدا."
     },
     "get_balance": {
-      "en": "Your available balance is {balance_text}."
+      "en": "Your available balance is {balance_text}.",
+      "he": "היתרה הזמינה שלכם היא {balance_text}.",
+      "ar": "رصيدكم المتاح هو {balance_text}."
     },
     "get_card": {
-      "en": "Card ending {last4} is {status}."
+      "en": "Card ending {last4} is {status}.",
+      "he": "הכרטיס שמסתיים ב-{last4} הוא {status}.",
+      "ar": "البطاقة المنتهية ب {last4} هي {status}."
     },
     "get_card_statement": {
-      "en": "{statement}"
+      "en": "{statement}",
+      "he": "הפירוט: {statement}",
+      "ar": "الكشف: {statement}"
     },
     "confirm_block": {
-      "en": "You asked to block the card ending {last4}. Are you sure? Say yes or no."
+      "en": "You asked to block the card ending {last4}. Are you sure? Say yes or no.",
+      "he": "ביקשתם לחסום את הכרטיס שמסתיים ב-{last4}. האם אתם בטוחים? אמרו כן או לא.",
+      "ar": "طلبتم تجميد البطاقة المنتهية ب {last4}. هل أنتم متأكدون؟ قولوا نعم أو لا."
     },
     "confirm_unblock": {
-      "en": "You asked to unblock the card ending {last4}. Are you sure? Say yes or no."
+      "en": "You asked to unblock the card ending {last4}. Are you sure? Say yes or no.",
+      "he": "ביקשתם לשחרר את החסימה של הכרטיס שמסתיים ב-{last4}. האם אתם בטוחים? אמרו כן או לא.",
+      "ar": "طلبتم إلغاء تجميد البطاقة المنتهية ب {last4}. هل أنتم متأكدون؟ قولوا نعم أو لا."
     },
     "card_blocked": {
-      "en": "The card ending {last4} is now blocked."
+      "en": "The card ending {last4} is now blocked.",
+      "he": "הכרטיס שמסתיים ב-{last4} חסום כעת.",
+      "ar": "البطاقة المنتهية ب {last4} مجمدة الآن."
     },
     "card_unblocked": {
-      "en": "The card ending {last4} is now unblocked."
+      "en": "The card ending {last4} is now unblocked.",
+      "he": "הכרטיס שמסתיים ב-{last4} שוחרר מחסימה.",
+      "ar": "البطاقة المنتهية ب {last4} لم تعد مجمدة."
     },
     "dtmf_actions": {
-      "en": "Press 1 for balance, 2 for PIN, 3 for card details, 4 for statement, 5 to block, 6 to unblock."
+      "en": "Press 1 for balance, 2 for PIN, 3 for card details, 4 for statement, 5 to block, 6 to unblock.",
+      "he": "הקישו 1 ליתרה, 2 לקוד סודי, 3 לפרטי כרטיס, 4 לפירוט, 5 לחסימה, 6 לשחרור חסימה.",
+      "ar": "اضغطوا 1 للرصيد، 2 للرمز السري، 3 لبيانات البطاقة، 4 للكشف، 5 للتجميد، 6 لإلغاء التجميد."
     },
     "dtmf_confirm": {
-      "en": "Press 1 for yes, or 2 for no."
+      "en": "Press 1 for yes, or 2 for no.",
+      "he": "הקישו 1 לכן, או 2 ללא.",
+      "ar": "اضغطوا 1 لنعم، أو 2 للا."
     },
     "goodbye": {
       "en": "Goodbye.",
-      "fr": "Au revoir."
+      "fr": "Au revoir.",
+      "he": "להתראות.",
+      "ar": "مع السلامة."
     }
   }
 }

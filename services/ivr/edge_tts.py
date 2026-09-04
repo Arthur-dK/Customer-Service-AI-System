@@ -21,6 +21,7 @@ EDGE_VOICES: dict[str, str] = {
     "en": "en-US-JennyNeural",
     "es": "es-ES-ElviraNeural",
     "fr": "fr-FR-DeniseNeural",
+    "he": "he-IL-HilaNeural",
     "hi": "hi-IN-SwaraNeural",
     "id": "id-ID-GadisNeural",
     "it": "it-IT-ElsaNeural",

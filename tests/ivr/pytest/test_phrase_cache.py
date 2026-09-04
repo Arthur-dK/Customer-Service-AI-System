@@ -30,7 +30,7 @@ class CountingTone(ToneTextToSpeech):
 
 def test_catalog_has_english_and_french_for_static_lines():
     catalog = load_phrase_catalog()
-    assert catalog.warmup_languages == ("en", "fr")
+    assert catalog.warmup_languages == ("en", "he", "ar")
     for phrase_id in (DID_NOT_CATCH, MAIN_MENU, PLACEHOLDER_BALANCE, GOODBYE):
         assert catalog.has(phrase_id, "en")
         assert catalog.has(phrase_id, "fr")
@@ -112,10 +112,12 @@ async def test_warmup_then_get_ready_does_not_call_tts(tmp_path):
     assert tts.calls == warmed
 
     en_menu = cache.get_ready(MAIN_MENU, "en")
-    fr_menu = cache.get_ready(MAIN_MENU, "fr")
+    he_menu = cache.get_ready(MAIN_MENU, "he")
+    ar_menu = cache.get_ready(MAIN_MENU, "ar")
     en_error = cache.get_ready(DID_NOT_CATCH, "en")
-    assert en_menu and fr_menu and en_error
-    assert en_menu != fr_menu
+    assert en_menu and he_menu and ar_menu and en_error
+    assert cache.is_ready(MAIN_MENU, "he")
+    assert cache.is_ready(MAIN_MENU, "ar")
     assert tts.calls == warmed
 
 

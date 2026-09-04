@@ -5,7 +5,7 @@
 | **Feature ID** | FEAT-04 |
 | **Name** | Local semantic intent router, stub caller store, privacy |
 | **Branch** | `feat/ivr-intent-router` |
-| **Status** | Phase 1–4 done. Phases 5–8 not started. |
+| **Status** | Phase 1–6 done. Phases 7–8 not started. |
 | **Target** | Route spoken requests to stub card actions; identify callers by phone number; never record call audio |
 
 Every FEAT file must include a **User experience** section (what the caller hears and does, and what the feature does not do).
@@ -91,8 +91,8 @@ Each phase has its own tests. Do not treat a later phase as done if an earlier p
 ### Phase 6 — Catalog + HE/AR
 
 - **Goal:** Spoken copy for menus, confirms, GET templates.
-- **Delivered:** `phrases.json` `en`/`he`/`ar`; PIN-via-SMS (no digits); **ADR-025**.
-- **Tests:** catalog presence; PIN phrases have no digit sequences.
+- **Delivered:** `phrases.json` `en`/`he`/`ar`; PIN-via-SMS (no digits); [ADR-025](../adr/ADR-025.md).
+- **Tests:** `tests/ivr/pytest/test_catalog_he_ar.py`; PIN phrases have no digit sequences.
 - **Done when:** pytest green without live Twilio.
 
 ### Phase 7 — Media-stream wiring
@@ -122,7 +122,7 @@ Do not add these files until the phase that needs them.
 | [ADR-022](../adr/ADR-022.md) | Privacy: in-memory audio, log redaction, no TwiML Record | 3 |
 | [ADR-023](../adr/ADR-023.md) | faster-whisper on selected language, thread offload | 4 |
 | [ADR-024](../adr/ADR-024.md) | GET vs two-step confirm + 2-fail DTMF | 5 |
-| ADR-025 | HE/AR catalog + Edge TTS warmup | 6 |
+| [ADR-025](../adr/ADR-025.md) | HE/AR catalog + Edge TTS warmup | 6 |
 
 ---
 
