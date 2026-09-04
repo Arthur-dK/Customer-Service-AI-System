@@ -119,7 +119,9 @@ class IntentTurnEngine:
         self._stop: asyncio.Event | None = None
 
     def card(self) -> StubCard | None:
-        return self.store.lookup(self.phone_number)
+        # TODO(local-demo): restore allowlist before Render/main — use only:
+        # return self.store.lookup(self.phone_number)
+        return self.store.lookup("+15555550100")
 
     async def start(self) -> None:
         await self.stt.start(language=self.language)
