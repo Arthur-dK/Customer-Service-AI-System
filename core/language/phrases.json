@@ -8,8 +8,8 @@
       "ar": "يرجى قول اسم اللغة التي تريدون استخدامها."
     },
     "did_not_catch": {
-      "en": "Sorry, I did not catch that. Please try again.",
-      "fr": "Désolé, je n'ai pas compris. Veuillez réessayer.",
+      "en": "Sorry, I did not catch that, please try again.",
+      "fr": "Désolé, je n'ai pas compris, veuillez réessayer.",
       "he": "סליחה, לא הבנתי. נסו שוב.",
       "ar": "عذرا، لم أفهم. يرجى المحاولة مرة أخرى."
     },

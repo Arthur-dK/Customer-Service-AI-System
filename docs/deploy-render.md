@@ -44,8 +44,10 @@ Twilio Voice webhook: `https://<your-host>/voice/incoming` (HTTP POST). Media St
 
 ## Native Python (only if you cannot use Docker)
 
-1. **PYTHON_VERSION** = `3.12.8` (Torch has no 3.14 wheels).
-2. **Build command:** `pip install -r requirements-render.txt`
+Render’s default **Python** runtime installs **`requirements.txt`**, not the Dockerfile. That file now includes Linux-only Whisper + BGE (`faster-whisper`, `sentence-transformers`) next to SpeechBrain. If logs still say `STT import failed` / `No module named 'faster_whisper'`, the deploy did not install that file (clear build cache, or set the build command below).
+
+1. **PYTHON_VERSION** = `3.12.8` (Torch has no 3.14 wheels). `runtime.txt` already pins this.
+2. **Build command:** `pip install -r requirements-render.txt` (or the default `pip install -r requirements.txt` on Linux).
 3. **Start command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 4. **HF_HOME** = `/opt/render/project/src/.cache/huggingface`
 5. Remove `IVR_LID_FORCE_LANGUAGE` (or leave it empty).

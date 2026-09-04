@@ -14,8 +14,11 @@ ollama>=0.1.7
 phonenumbers>=8.13.0
 huggingface_hub>=0.23.0
 
-# Linux/Render default pip: install SpeechBrain LID (skipped on Windows).
+# Linux/Render default pip (native Python runtime uses this file, not Docker).
+# Skipped on Windows. extra-index is only for Torch CPU wheels.
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch==2.9.1+cpu; sys_platform == "linux"
 torchaudio==2.9.1+cpu; sys_platform == "linux"
 speechbrain>=1.0.0,<2; sys_platform == "linux"
+faster-whisper>=1.0.0; sys_platform == "linux"
+sentence-transformers>=3.0.0; sys_platform == "linux"

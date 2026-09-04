@@ -94,10 +94,12 @@ class WhisperStreamingSpeechToText:
             return self._transcribe_fn(mulaw, language)
         try:
             model = _load_whisper_model(self.model_size)
-        except ModuleNotFoundError:
+        except ModuleNotFoundError as exc:
             logger.warning(
-                "faster_whisper is not installed; STT returned empty. "
-                "Rebuild with requirements-ivr-intent.txt / requirements-render.txt."
+                "STT import failed (%s); returned empty. "
+                "Native Render pip uses requirements.txt (Linux extras). "
+                "Docker must print intent_extras faster_whisper at image build.",
+                exc,
             )
             return ""
         pcm16 = resample_pcm16(mulaw_to_pcm16(mulaw), TWILIO_SAMPLE_RATE, WHISPER_SAMPLE_RATE)

@@ -8,9 +8,12 @@ ROOT = Path(__file__).resolve().parents[3]
 def test_render_requirements_include_whisper_and_bge():
     text = (ROOT / "requirements-render.txt").read_text(encoding="utf-8")
     extras = (ROOT / "requirements-ivr-intent.txt").read_text(encoding="utf-8")
+    native = (ROOT / "requirements.txt").read_text(encoding="utf-8")
     assert "requirements-ivr-intent.txt" in text
     assert "faster-whisper" in extras
     assert "sentence-transformers" in extras
+    assert "faster-whisper" in native
+    assert "sentence-transformers" in native
 
 
 def test_dockerfile_installs_intent_extras():
