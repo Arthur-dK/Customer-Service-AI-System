@@ -19,6 +19,7 @@ from core.language.phrases import (
     DTMF_CONFIRM,
     GET_BALANCE,
     GET_CARD,
+    MAIN_MENU,
     PIN_VIA_SMS,
     UNKNOWN_CALLER,
 )
@@ -248,3 +249,24 @@ async def test_two_unclear_confirms_offer_dtmf_confirm(tmp_path: Path):
     yes = await engine.handle_dtmf("1", outbound)
     assert yes.phrase_id == CARD_BLOCKED
     assert engine.store.lookup(PHONE).blocked is True
+
+
+@pytest.mark.asyncio
+async def test_live_playback_clears_when_caller_speaks(tmp_path: Path):
+    from services.ivr.language_selection import CLEAR_AUDIO_SENTINEL
+
+    engine, _ = await _engine(tmp_path, router=QueueRouter([]))
+    inbound: asyncio.Queue[bytes] = asyncio.Queue()
+    outbound: asyncio.Queue[str] = asyncio.Queue()
+    engine._inbound = inbound
+    engine._dtmf = asyncio.Queue()
+    engine._stop = asyncio.Event()
+    speech = generate_tone_mulaw(200, amplitude=0.6)
+    await inbound.put(speech)
+    await inbound.put(speech)
+    await engine.play_phrase(MAIN_MENU, outbound, measure_ttfb=False)
+    chunks: list[str] = []
+    while not outbound.empty():
+        chunks.append(outbound.get_nowait())
+    assert CLEAR_AUDIO_SENTINEL in chunks
+    assert inbound.empty() is False

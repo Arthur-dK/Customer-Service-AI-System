@@ -75,6 +75,21 @@ def test_build_default_whisper_backend():
     assert isinstance(stt, WhisperStreamingSpeechToText)
 
 
+@pytest.mark.asyncio
+async def test_missing_faster_whisper_returns_empty_not_crash(monkeypatch):
+    def boom(_size: str):
+        raise ModuleNotFoundError("faster_whisper")
+
+    monkeypatch.setattr("services.ivr.whisper_stt._load_whisper_model", boom)
+    stt = WhisperStreamingSpeechToText()
+    await stt.start(language="en")
+    await stt.feed_mulaw(_utterance_mulaw())
+    result = await stt.finish()
+    assert result is not None
+    assert result.text == ""
+    assert result.is_final is True
+
+
 @pytest.mark.slow
 @pytest.mark.asyncio
 async def test_optional_real_faster_whisper_on_tone():

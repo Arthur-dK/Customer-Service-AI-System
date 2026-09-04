@@ -92,7 +92,14 @@ class WhisperStreamingSpeechToText:
     def _recognize(self, mulaw: bytes, language: str) -> str:
         if self._transcribe_fn is not None:
             return self._transcribe_fn(mulaw, language)
-        model = _load_whisper_model(self.model_size)
+        try:
+            model = _load_whisper_model(self.model_size)
+        except ModuleNotFoundError:
+            logger.warning(
+                "faster_whisper is not installed; STT returned empty. "
+                "Rebuild with requirements-ivr-intent.txt / requirements-render.txt."
+            )
+            return ""
         pcm16 = resample_pcm16(mulaw_to_pcm16(mulaw), TWILIO_SAMPLE_RATE, WHISPER_SAMPLE_RATE)
         audio = _pcm16_to_float32(pcm16)
         segments, _info = model.transcribe(

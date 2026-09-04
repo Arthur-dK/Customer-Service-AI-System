@@ -18,7 +18,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt requirements-ivr-lid.txt requirements-ivr-intent.txt requirements-render.txt ./
-RUN pip install --no-cache-dir -r requirements-render.txt
+RUN pip install --no-cache-dir -r requirements-render.txt \
+    && pip install --no-cache-dir "faster-whisper>=1.0.0" "sentence-transformers>=3.0.0"
 
 COPY . .
 RUN PYTHONPATH=. python -c "from services.ivr.lid import SpeechBrainLanguageIdentifier, build_default_lid; lid = SpeechBrainLanguageIdentifier(); print('lid_backend', type(build_default_lid()).__name__); import faster_whisper; import sentence_transformers; print('intent_extras', faster_whisper.__name__, sentence_transformers.__name__)"

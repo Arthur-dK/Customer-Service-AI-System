@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
@@ -30,6 +31,7 @@ from core.language.phrases import (
     PIN_VIA_SMS,
     UNKNOWN_CALLER,
 )
+from services.ivr.language_selection import _clear_twilio_playback
 from services.ivr.phrase_cache import PhraseAudioCache
 from services.ivr.streaming_stt import StreamingSpeechToText, feed_until_speech_end
 from services.ivr.streaming_tts import StreamingTextToSpeech, enqueue_tts_stream, stream_ready_phrase
@@ -112,11 +114,12 @@ class IntentTurnEngine:
         self.confirm_fail_count = 0
         self.mode = DialogueMode.LISTEN
         self.pending_action: CardAction | None = None
+        self._inbound: asyncio.Queue[bytes] | None = None
+        self._dtmf: asyncio.Queue[str] | None = None
+        self._stop: asyncio.Event | None = None
 
     def card(self) -> StubCard | None:
-        # TODO(local-demo): restore allowlist before Render/main — use only:
-        # return self.store.lookup(self.phone_number)
-        return self.store.lookup("+15555550100")
+        return self.store.lookup(self.phone_number)
 
     async def start(self) -> None:
         await self.stt.start(language=self.language)
@@ -130,37 +133,109 @@ class IntentTurnEngine:
         cancel: asyncio.Event | None = None,
         slots: dict[str, str] | None = None,
     ) -> int:
+        if cancel is None:
+            cancel = asyncio.Event()
         if slots:
             play_lang = self.cache.play_language(phrase_id, self.language)
             text = self.cache.catalog.formatted(phrase_id, play_lang, **slots)
             if self.fallback_tts is None:
                 raise RuntimeError("slot replies need fallback_tts")
-            return await enqueue_tts_stream(
-                self.fallback_tts.stream(
-                    text,
-                    play_lang,
-                    chunk_ms=self.chunk_ms,
-                    cancel=cancel,
-                ),
-                outbound,
-                self.ttfb if measure_ttfb else None,
-                reply_kind=ReplyKind.CANNED,
+            stream = self.fallback_tts.stream(
+                text,
+                play_lang,
+                chunk_ms=self.chunk_ms,
                 cancel=cancel,
             )
-        return await enqueue_tts_stream(
-            stream_ready_phrase(
+        else:
+            stream = stream_ready_phrase(
                 self.cache,
                 phrase_id,
                 self.language,
                 chunk_ms=self.chunk_ms,
                 cancel=cancel,
                 fallback=self.fallback_tts,
-            ),
-            outbound,
-            self.ttfb if measure_ttfb else None,
-            reply_kind=ReplyKind.CANNED,
-            cancel=cancel,
+            )
+        play = asyncio.create_task(
+            enqueue_tts_stream(
+                stream,
+                outbound,
+                self.ttfb if measure_ttfb else None,
+                reply_kind=ReplyKind.CANNED,
+                cancel=cancel,
+            )
         )
+        if self._inbound is None:
+            return await play
+        return await self._await_play_with_barge_in(play, cancel, outbound)
+
+    async def _await_play_with_barge_in(
+        self,
+        play: asyncio.Task[int],
+        cancel: asyncio.Event,
+        outbound: asyncio.Queue[str],
+    ) -> int:
+        """Stop Twilio playback if the caller speaks or presses a key (same as language select)."""
+        inbound = self._inbound
+        dtmf = self._dtmf
+        stop = self._stop
+        assert inbound is not None
+        probe = EnergyVad(
+            VadConfig(
+                rms_threshold=self.vad.config.rms_threshold,
+                speech_start_ms=self.vad.config.speech_start_ms,
+                speech_end_ms=self.vad.config.speech_end_ms,
+            )
+        )
+        held: list[bytes] = []
+        window_end: float | None = None
+        sent = 0
+        try:
+            while True:
+                if stop is not None and stop.is_set():
+                    cancel.set()
+                    _clear_twilio_playback(outbound)
+                    break
+                if dtmf is not None:
+                    try:
+                        digit = dtmf.get_nowait()
+                    except asyncio.QueueEmpty:
+                        digit = None
+                    if digit:
+                        cancel.set()
+                        _clear_twilio_playback(outbound)
+                        dtmf.put_nowait(digit)
+                        break
+                if play.done() and window_end is None:
+                    sent = play.result()
+                    window_end = time.monotonic() + max(sent * self.chunk_ms / 1000.0, 0.05)
+                if window_end is not None and time.monotonic() >= window_end:
+                    break
+                try:
+                    chunk = await asyncio.wait_for(inbound.get(), timeout=0.05)
+                except asyncio.TimeoutError:
+                    continue
+                held.append(chunk)
+                for event in probe.process_mulaw(chunk):
+                    if event.kind == "speech_start":
+                        cancel.set()
+                        _clear_twilio_playback(outbound)
+                        window_end = time.monotonic()
+                        break
+        finally:
+            if not play.done():
+                cancel.set()
+                try:
+                    sent = await play
+                except asyncio.CancelledError:
+                    sent = 0
+            elif play.done():
+                try:
+                    sent = play.result()
+                except Exception:
+                    sent = 0
+            for chunk in held:
+                inbound.put_nowait(chunk)
+        return sent
 
     async def refuse_unknown(self, outbound: asyncio.Queue[str]) -> IntentTurnResult:
         sent = await self.play_phrase(UNKNOWN_CALLER, outbound, measure_ttfb=False)
@@ -279,38 +354,46 @@ class IntentTurnEngine:
         on_turn: Callable[[list[IntentTurnResult]], None] | None = None,
     ) -> list[IntentTurnResult]:
         """Handoff after language selection: same inbound/outbound/DTMF queues."""
-        await self.start()
-        if self.card() is None:
-            result = await self.refuse_unknown(outbound_audio)
-            if on_turn is not None:
-                on_turn([result])
-            await outbound_audio.join()
-            stop_event.set()
-            return [result]
-        if play_menu:
-            await self.play_phrase(MAIN_MENU, outbound_audio, measure_ttfb=False)
-        results: list[IntentTurnResult] = []
-        for _ in range(max_turns):
-            if stop_event.is_set():
-                break
-            result = await self.handle_inbound_queue(
-                inbound_audio,
-                outbound_audio,
-                stop_event,
-                dtmf_digits=dtmf_digits,
-            )
-            if result is None:
-                break
-            results.append(result)
-            if on_turn is not None:
-                on_turn(results)
-            if result.hung_up:
+        self._inbound = inbound_audio
+        self._dtmf = dtmf_digits
+        self._stop = stop_event
+        try:
+            await self.start()
+            if self.card() is None:
+                result = await self.refuse_unknown(outbound_audio)
+                if on_turn is not None:
+                    on_turn([result])
                 await outbound_audio.join()
                 stop_event.set()
-                break
-            if result.ended:
-                break
-        return results
+                return [result]
+            if play_menu:
+                await self.play_phrase(MAIN_MENU, outbound_audio, measure_ttfb=False)
+            results: list[IntentTurnResult] = []
+            for _ in range(max_turns):
+                if stop_event.is_set():
+                    break
+                result = await self.handle_inbound_queue(
+                    inbound_audio,
+                    outbound_audio,
+                    stop_event,
+                    dtmf_digits=dtmf_digits,
+                )
+                if result is None:
+                    break
+                results.append(result)
+                if on_turn is not None:
+                    on_turn(results)
+                if result.hung_up:
+                    await outbound_audio.join()
+                    stop_event.set()
+                    break
+                if result.ended:
+                    break
+            return results
+        finally:
+            self._inbound = None
+            self._dtmf = None
+            self._stop = None
 
     async def run_scripted_session(
         self,
