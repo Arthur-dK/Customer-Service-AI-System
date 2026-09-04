@@ -7,6 +7,7 @@ Channel adapters live under ``services/ivr``, ``services/sms``, and
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -14,9 +15,13 @@ from typing import Any
 from core.cards.e164 import normalize_e164
 from core.cards.models import StubCard
 
+logger = logging.getLogger(__name__)
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_EXAMPLE_JSON = REPO_ROOT / "data" / "callers.example.json"
 DEFAULT_LOCAL_JSON = REPO_ROOT / "data" / "callers.local.json"
+# Common misspelling of the gitignored overlay; do not commit this file either.
+ALT_LOCAL_JSON = REPO_ROOT / "data" / "caller.local.json"
 DEFAULT_SQLITE = REPO_ROOT / "data" / "callers.sqlite"
 
 _SCHEMA = """
@@ -150,6 +155,20 @@ def _load_json_text(raw: str | None) -> dict[str, Any]:
     return json.loads(raw)
 
 
+def _resolve_local_overlay_path(local_path: Path | None) -> Path:
+    path = local_path or DEFAULT_LOCAL_JSON
+    if path.is_file():
+        return path
+    if path == DEFAULT_LOCAL_JSON and ALT_LOCAL_JSON.is_file():
+        logger.warning(
+            "Loading overlay %s; rename it to %s (the name the store and gitignore use).",
+            ALT_LOCAL_JSON,
+            DEFAULT_LOCAL_JSON,
+        )
+        return ALT_LOCAL_JSON
+    return path
+
+
 def build_caller_store(
     *,
     sqlite_path: Path | None = None,
@@ -163,7 +182,7 @@ def build_caller_store(
         if "pin" in card:
             raise ValueError("committed caller seed must not include pin")
         store.upsert_card(card, allow_pin=False)
-    local = _load_json_file(local_path or DEFAULT_LOCAL_JSON)
+    local = _load_json_file(_resolve_local_overlay_path(local_path))
     for card in local.get("cards") or []:
         store.upsert_card(card, allow_pin=True)
     for card in _load_json_text(override_json).get("cards") or []:

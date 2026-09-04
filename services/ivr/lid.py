@@ -387,13 +387,15 @@ def build_default_lid(
             logger.info("Using SpeechBrain LID model=%s", speechbrain_model)
             return lid
         except Exception as exc:  # pragma: no cover - optional dependency path
-            logger.exception("SpeechBrain LID failed to load")
             logger.warning(
-                "Using fixed English LID fallback (%s: %s). Spoken audio is not identified.",
-                type(exc).__name__,
+                "SpeechBrain LID unavailable (%s); using fixed English LID. "
+                "Install requirements-ivr-lid.txt locally; Render uses "
+                "requirements-render.txt. DTMF language select still works.",
                 exc,
             )
-            return FixedLanguageIdentifier(language="en", confidence=0.99, backend="fixed-fallback")
+            return FixedLanguageIdentifier(
+                language="en", confidence=0.99, backend="fixed-fallback"
+            )
 
     logger.warning(
         "Using fixed English LID because SpeechBrain is disabled. "

@@ -81,6 +81,28 @@ def test_local_overlay_adds_pin_and_extra_phone(tmp_path):
     store.close()
 
 
+def test_local_overlay_accepts_singular_filename(tmp_path, monkeypatch):
+    from core.cards import store as store_mod
+
+    canonical = tmp_path / "callers.local.json"
+    alt = tmp_path / "caller.local.json"
+    alt.write_text(
+        json.dumps(
+            {"cards": [{"card_id": "stub-card-demo", "phones": ["+15555550109"]}]}
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(store_mod, "DEFAULT_LOCAL_JSON", canonical)
+    monkeypatch.setattr(store_mod, "ALT_LOCAL_JSON", alt)
+    store = build_caller_store(
+        sqlite_path=tmp_path / "callers.sqlite",
+        example_path=EXAMPLE,
+        local_path=None,
+    )
+    assert store.lookup("+15555550109") is not None
+    store.close()
+
+
 def test_env_override_json_merges(tmp_path):
     store = build_caller_store(
         sqlite_path=tmp_path / "db.sqlite",
