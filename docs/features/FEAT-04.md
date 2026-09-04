@@ -84,7 +84,7 @@ Each phase has its own tests. Do not treat a later phase as done if an earlier p
 ### Phase 5 — Dialogue (offline)
 
 - **Goal:** Allowlist, GET vs two-step confirm, 2-fail DTMF — no Twilio.
-- **Delivered:** intent turn engine; **ADR-024**.
+- **Delivered:** `services/ivr/intent_turns.py`; [ADR-024](../adr/ADR-024.md).
 - **Tests:** `tests/ivr/pytest/test_intent_turns.py`.
 - **Done when:** unknown hangup, GET, confirm yes/no, two rejects → DTMF.
 
@@ -121,7 +121,7 @@ Do not add these files until the phase that needs them.
 | [ADR-021](../adr/ADR-021.md) | BGE-M3 prototype router | 2 |
 | [ADR-022](../adr/ADR-022.md) | Privacy: in-memory audio, log redaction, no TwiML Record | 3 |
 | [ADR-023](../adr/ADR-023.md) | faster-whisper on selected language, thread offload | 4 |
-| ADR-024 | GET vs two-step confirm + 2-fail DTMF | 5 |
+| [ADR-024](../adr/ADR-024.md) | GET vs two-step confirm + 2-fail DTMF | 5 |
 | ADR-025 | HE/AR catalog + Edge TTS warmup | 6 |
 
 ---

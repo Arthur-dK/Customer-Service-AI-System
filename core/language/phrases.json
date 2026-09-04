@@ -25,6 +25,39 @@
       "en": "Your card has been blocked. This is a placeholder.",
       "fr": "Votre carte a été bloquée. Ceci est un exemple."
     },
+    "unknown_caller": {
+      "en": "We cannot identify this phone number. Goodbye."
+    },
+    "pin_via_sms": {
+      "en": "We will send your PIN by SMS. We never speak your PIN on this call."
+    },
+    "get_balance": {
+      "en": "Your available balance is {balance_text}."
+    },
+    "get_card": {
+      "en": "Card ending {last4} is {status}."
+    },
+    "get_card_statement": {
+      "en": "{statement}"
+    },
+    "confirm_block": {
+      "en": "You asked to block the card ending {last4}. Are you sure? Say yes or no."
+    },
+    "confirm_unblock": {
+      "en": "You asked to unblock the card ending {last4}. Are you sure? Say yes or no."
+    },
+    "card_blocked": {
+      "en": "The card ending {last4} is now blocked."
+    },
+    "card_unblocked": {
+      "en": "The card ending {last4} is now unblocked."
+    },
+    "dtmf_actions": {
+      "en": "Press 1 for balance, 2 for PIN, 3 for card details, 4 for statement, 5 to block, 6 to unblock."
+    },
+    "dtmf_confirm": {
+      "en": "Press 1 for yes, or 2 for no."
+    },
     "goodbye": {
       "en": "Goodbye.",
       "fr": "Au revoir."

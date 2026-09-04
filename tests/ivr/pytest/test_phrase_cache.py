@@ -6,6 +6,7 @@ import pytest
 
 from core.language.phrases import (
     DID_NOT_CATCH,
+    GET_BALANCE,
     GOODBYE,
     MAIN_MENU,
     PLACEHOLDER_BALANCE,
@@ -38,12 +39,29 @@ def test_catalog_has_english_and_french_for_static_lines():
         assert catalog.text(phrase_id, "en") != catalog.text(phrase_id, "fr")
 
 
+def _warmup_count(catalog, languages, *, can_speak) -> int:
+    count = 0
+    for phrase_id in catalog.ids:
+        for language in languages:
+            if not catalog.has(phrase_id, language):
+                continue
+            if not can_speak(language):
+                continue
+            if "{" in catalog.text(phrase_id, language, strict=True):
+                continue
+            count += 1
+    return count
+
+
 def test_unknown_phrase_id_raises():
     catalog = load_phrase_catalog()
     with pytest.raises(UnknownPhraseError):
         catalog.text("not_a_real_phrase", "en")
     assert catalog.resolve_language(MAIN_MENU, "kk") == "en"
     assert catalog.text(MAIN_MENU, "zh") == catalog.text(MAIN_MENU, "en", strict=True)
+    assert catalog.formatted(GET_BALANCE, "en", balance_text="ten dollars") == (
+        "Your available balance is ten dollars."
+    )
 
 
 @pytest.mark.asyncio
@@ -64,8 +82,14 @@ async def test_warmup_skips_languages_tts_cannot_speak(tmp_path):
     tts = EnglishOnly()
     cache = PhraseAudioCache(tts, cache_dir=tmp_path)
     warmed = await cache.warmup()
-    assert warmed == len(cache.catalog.ids)
+    assert warmed == _warmup_count(
+        cache.catalog,
+        cache.catalog.warmup_languages,
+        can_speak=lambda language: language.startswith("en"),
+    )
     assert cache.is_ready(MAIN_MENU, "en")
+    with pytest.raises(PhraseNotReadyError):
+        cache.get_ready(GET_BALANCE, "en")
     # French text is not spoken with an English voice; the English recording plays instead.
     assert cache.get_ready(MAIN_MENU, "fr") == cache.get_ready(MAIN_MENU, "en")
     assert cache.play_language(MAIN_MENU, "fr") == "en"
@@ -80,7 +104,11 @@ async def test_warmup_then_get_ready_does_not_call_tts(tmp_path):
         cache.get_ready(MAIN_MENU, "en")
 
     warmed = await cache.warmup()
-    assert warmed == len(cache.catalog.ids) * len(cache.catalog.warmup_languages)
+    assert warmed == _warmup_count(
+        cache.catalog,
+        cache.catalog.warmup_languages,
+        can_speak=lambda _language: True,
+    )
     assert tts.calls == warmed
 
     en_menu = cache.get_ready(MAIN_MENU, "en")

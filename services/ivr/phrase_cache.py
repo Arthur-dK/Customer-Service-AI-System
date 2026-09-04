@@ -111,6 +111,8 @@ class PhraseAudioCache:
                     continue
                 if not self.tts.supports_language(language):
                     continue
+                if "{" in self.catalog.text(phrase_id, language, strict=True):
+                    continue
                 await self.get(phrase_id, language)
                 warmed += 1
         logger.info("Warmed %s IVR phrase buffer(s)", warmed)

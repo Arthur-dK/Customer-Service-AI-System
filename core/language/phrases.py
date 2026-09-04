@@ -20,6 +20,17 @@ PLACEHOLDER_BALANCE = "placeholder_balance"
 PLACEHOLDER_PIN = "placeholder_pin"
 PLACEHOLDER_BLOCKED = "placeholder_blocked"
 GOODBYE = "goodbye"
+UNKNOWN_CALLER = "unknown_caller"
+PIN_VIA_SMS = "pin_via_sms"
+GET_CARD = "get_card"
+GET_CARD_STATEMENT = "get_card_statement"
+GET_BALANCE = "get_balance"
+CONFIRM_BLOCK = "confirm_block"
+CONFIRM_UNBLOCK = "confirm_unblock"
+CARD_BLOCKED = "card_blocked"
+CARD_UNBLOCKED = "card_unblocked"
+DTMF_ACTIONS = "dtmf_actions"
+DTMF_CONFIRM = "dtmf_confirm"
 
 
 class UnknownPhraseError(KeyError):
@@ -61,6 +72,10 @@ class PhraseCatalog:
         if lang not in texts:
             raise UnknownPhraseError(f"{phrase_id}:{lang}")
         return texts[lang]
+
+    def formatted(self, phrase_id: str, language: str, **slots: str) -> str:
+        """Catalog line with stub slots filled (e.g. last-4, spoken balance)."""
+        return self.text(phrase_id, language).format(**slots)
 
 
 @lru_cache(maxsize=1)
