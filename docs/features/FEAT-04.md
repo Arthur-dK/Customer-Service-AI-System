@@ -5,7 +5,7 @@
 | **Feature ID** | FEAT-04 |
 | **Name** | Local semantic intent router, stub caller store, privacy |
 | **Branch** | `feat/ivr-intent-router` |
-| **Status** | Phase 1–7 done. Phase 8 not started. |
+| **Status** | Phase 1–8 done. |
 | **Target** | Route spoken requests to stub card actions; identify callers by phone number; never record call audio |
 
 Every FEAT file must include a **User experience** section (what the caller hears and does, and what the feature does not do).
@@ -106,7 +106,7 @@ Each phase has its own tests. Do not treat a later phase as done if an earlier p
 
 - **Goal:** Hosting notes and handset checklist.
 - **Delivered:** Docker/requirements/RAM notes; boot seed; runbook below.
-- **Tests:** pytest still offline.
+- **Tests:** `tests/ivr/pytest/test_render_stack.py` (offline).
 - **Done when:** this checklist is accurate; image includes whisper + embedding extras.
 
 ---
@@ -141,33 +141,59 @@ Schema (one card, many phones): card last-4, fake balance, currency, blocked fla
 
 ## Pytest (offline)
 
-Commands land as each phase adds tests. After Phase 1:
-
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/cards/test_caller_store.py tests/intents/test_intent_router.py tests/ivr/pytest/test_privacy_ivr.py tests/ivr/pytest/test_twiml.py tests/ivr/pytest/test_whisper_stt.py -q
+.\venv\Scripts\python.exe -m pytest -q -m "not slow"
 ```
 
 ---
 
-## Phase 8 live smoke runbook (fill in when that phase ships)
+## Phase 8 live smoke runbook
 
-1. Overlay: put your E.164 in `data/callers.local.json` or `CALLER_OVERRIDE_JSON` (never commit it).
-2. `IVR_STT_BACKEND=whisper`, `IVR_INTENT_EMBEDDER=bge`.
-3. Unknown number: refusal, then hang up. Log `from=` shows **last-4 only**.
-4. Allowlisted number: language select, then six-action menu. Ask for balance in a paraphrase; hear stub balance text (no real issuer).
-5. Ask to block: hear last-4 restatement; say yes; hear blocked. Unblock the same way.
-6. Ask for PIN: hear SMS placeholder; **no digits**.
-7. Mumble twice: DTMF menu.
-8. Confirm TwiML for `/voice/incoming` has **no** `<Record>`.
-9. Hebrew / Arabic: pick that language at start; speak a prototype paraphrase; hear catalog TTS if Edge/Piper/SAPI can speak it.
+Prove the **intent** IVR on a real phone. Overlay your number without committing it. Official TTFB for canned lines is still the server log (`intent_turn`), not ear delay.
+
+### Overlay (never git)
+
+Local file `data/callers.local.json` (gitignored), **or** Render secret `CALLER_OVERRIDE_JSON`:
+
+```json
+{"cards":[{"card_id":"stub-card-demo","phones":["+44YOURNUMBER"]}]}
+```
+
+Optional `"pin"` only in that overlay. Example seed last-4 is `4242`; stub balance is “one hundred US dollars”.
+
+### Env
+
+```env
+IVR_STT_BACKEND=whisper
+IVR_WHISPER_MODEL=base
+INTENT_EMBEDDER=bge
+IVR_USE_EDGE_TTS=true
+IVR_PLAYBACK_REALTIME=false
+IVR_USE_SPEECHBRAIN_LID=true
+```
+
+Local Windows without SpeechBrain still starts (fixed English LID + DTMF). Render Docker must show SpeechBrain. Do **not** set `IVR_STT_SCRIPT`.
+
+### Calls
+
+1. **Unknown `From`:** language select, then refusal, no menu. Log `from_last4=` only (not full E.164). Dialogue stops.
+2. **Allowlisted:** six-action menu (goodbye is not offered). Paraphrase balance (“how much is left on the card”) → stub balance text.
+3. **Block:** restatement with last-4 `4242`; say yes → blocked. Unblock the same way. No must not mutate.
+4. **PIN:** SMS placeholder; **no digits** spoken or logged.
+5. **Mumble twice** → DTMF 1–6. Unclear confirm twice → 1 yes / 2 no.
+6. **Ambiguous** (“block the card and what is my balance”) counts as a failed turn.
+7. Webhook XML: **no** `<Record>`.
+8. **Hebrew / Arabic:** pick that language at start; speak a prototype from `core/intents/prototypes.json`; hear catalog TTS if Edge/Piper/SAPI can speak it.
 
 **STT latency:** a rare slow transcription (for example 1 in 50) is acceptable. If it is slow every 6–7 turns, change `IVR_WHISPER_MODEL` or hardware.
+
+Useful logs: `incoming_call from_last4=`, `language_selected`, `intent_turn phrase= action= hung_up=`, `caller store seeded`, `IVR STT warmed`, `IVR intent router warmed`. Never `transcript=`.
 
 ---
 
 ## Render notes (Phase 8)
 
-SpeechBrain LID + faster-whisper + BGE-M3 will not fit comfortably on a **2 GB** instance. Use a **larger** Render plan (8 GB class is a reasonable starting point). First boot warms models and may exceed default health-check windows; `/health` must stay off that warmup (existing lifespan pattern).
+Details: [deploy-render.md](../deploy-render.md). **8 GB RAM** class (not 2 GB). Image installs faster-whisper + sentence-transformers; Whisper and BGE weights download on first boot. `/health` does not wait on that warmup. Allowlist your handset with secret `CALLER_OVERRIDE_JSON`, never git.
 
 ---
 

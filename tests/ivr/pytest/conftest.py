@@ -36,9 +36,5 @@ def isolated_caller_store(tmp_path, monkeypatch):
     )
     monkeypatch.setattr("app.api.ivr.get_caller_store", lambda: store)
     monkeypatch.setattr("app.deps.get_caller_store", lambda: store)
-    monkeypatch.setattr(
-        "services.ivr.intent_turns.IntentTurnEngine.card",
-        lambda self: self.store.lookup(self.phone_number),
-    )
     yield store
     store.close()

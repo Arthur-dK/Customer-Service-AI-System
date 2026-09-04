@@ -10,10 +10,14 @@ services:
       - key: IVR_USE_SPEECHBRAIN_LID
         value: "true"
       - key: IVR_STT_BACKEND
-        value: scripted
+        value: whisper
+      - key: IVR_WHISPER_MODEL
+        value: base
       - key: IVR_PLAYBACK_REALTIME
         value: "false"
       - key: INTENT_EMBEDDER
-        value: fake
+        value: bge
+      - key: IVR_USE_EDGE_TTS
+        value: "true"
       - key: TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD
         value: "1"

@@ -5,7 +5,14 @@ import logging
 from fastapi import FastAPI
 
 from app.api import email, health, ivr, sms
-from app.deps import get_intent_router, get_lid, get_phrase_cache, get_streaming_stt, get_tts
+from app.deps import (
+    get_caller_store,
+    get_intent_router,
+    get_lid,
+    get_phrase_cache,
+    get_streaming_stt,
+    get_tts,
+)
 from core.config import settings
 from services.ivr.streaming_stt import parse_stt_script
 from services.ivr.tts import list_spoken_languages, warm_language_selection_prompts
@@ -62,6 +69,17 @@ async def lifespan(_app: FastAPI):
         except Exception:
             log.exception("IVR STT warmup failed; first utterance may be slow")
 
+    async def _seed_callers() -> None:
+        try:
+            store = await asyncio.to_thread(get_caller_store)
+            demo = store.lookup("+15555550100")
+            log.info(
+                "caller store seeded demo_card=%s",
+                None if demo is None else demo.card_id,
+            )
+        except Exception:
+            log.exception("caller store seed failed; lookups may miss until fixed")
+
     async def _warm_intent() -> None:
         try:
             router = await asyncio.to_thread(get_intent_router)
@@ -74,6 +92,7 @@ async def lifespan(_app: FastAPI):
         asyncio.create_task(_warm_audio()),
         asyncio.create_task(_warm_lid()),
         asyncio.create_task(_warm_stt()),
+        asyncio.create_task(_seed_callers()),
         asyncio.create_task(_warm_intent()),
     )
     yield

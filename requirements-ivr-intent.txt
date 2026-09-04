@@ -1,0 +1,9 @@
+# Optional / local IVR STT + intent embedder (FEAT-04).
+# Render Docker installs this via requirements-render.txt.
+# Local (after Torch from requirements-ivr-lid.txt):
+#   .\venv\Scripts\python.exe -m pip install -r requirements-ivr-intent.txt
+#
+# faster-whisper pulls CTranslate2. sentence-transformers pulls BGE-M3 weights on first warm.
+
+faster-whisper>=1.0.0
+sentence-transformers>=3.0.0
