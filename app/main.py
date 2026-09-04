@@ -5,7 +5,7 @@ import logging
 from fastapi import FastAPI
 
 from app.api import email, health, ivr, sms
-from app.deps import get_lid, get_phrase_cache, get_streaming_stt, get_tts
+from app.deps import get_intent_router, get_lid, get_phrase_cache, get_streaming_stt, get_tts
 from core.config import settings
 from services.ivr.streaming_stt import parse_stt_script
 from services.ivr.tts import list_spoken_languages, warm_language_selection_prompts
@@ -62,11 +62,19 @@ async def lifespan(_app: FastAPI):
         except Exception:
             log.exception("IVR STT warmup failed; first utterance may be slow")
 
+    async def _warm_intent() -> None:
+        try:
+            router = await asyncio.to_thread(get_intent_router)
+            log.info("IVR intent router warmed class=%s", type(router.embedder).__name__)
+        except Exception:
+            log.exception("IVR intent router warmup failed; first route may be slow")
+
     # Do not block /health on Edge TTS or Hugging Face (Render health checks).
     warmup_tasks = (
         asyncio.create_task(_warm_audio()),
         asyncio.create_task(_warm_lid()),
         asyncio.create_task(_warm_stt()),
+        asyncio.create_task(_warm_intent()),
     )
     yield
     for task in warmup_tasks:

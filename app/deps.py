@@ -3,7 +3,9 @@
 import threading
 from functools import lru_cache
 
+from core.cards.store import CallerStore, build_caller_store_from_settings
 from core.config import settings
+from core.intents.router import IntentRouter, build_intent_router_from_settings
 from services.ivr.lid import (
     LanguageIdentifier,
     SpeechBrainLanguageIdentifier,
@@ -71,3 +73,15 @@ def get_streaming_stt() -> StreamingSpeechToText:
         backend=settings.IVR_STT_BACKEND,
         whisper_model=settings.IVR_WHISPER_MODEL,
     )
+
+
+@lru_cache(maxsize=1)
+def get_caller_store() -> CallerStore:
+    return build_caller_store_from_settings(settings)
+
+
+@lru_cache(maxsize=1)
+def get_intent_router() -> IntentRouter:
+    router = build_intent_router_from_settings(settings)
+    router.warm()
+    return router

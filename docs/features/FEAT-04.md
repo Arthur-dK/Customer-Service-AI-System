@@ -5,7 +5,7 @@
 | **Feature ID** | FEAT-04 |
 | **Name** | Local semantic intent router, stub caller store, privacy |
 | **Branch** | `feat/ivr-intent-router` |
-| **Status** | Phase 1–6 done. Phases 7–8 not started. |
+| **Status** | Phase 1–7 done. Phase 8 not started. |
 | **Target** | Route spoken requests to stub card actions; identify callers by phone number; never record call audio |
 
 Every FEAT file must include a **User experience** section (what the caller hears and does, and what the feature does not do).
@@ -99,7 +99,7 @@ Each phase has its own tests. Do not treat a later phase as done if an earlier p
 
 - **Goal:** Live WS path after language select.
 - **Delivered:** `app/api/ivr.py` + deps; `render.yaml` not scripted goodbye.
-- **Tests:** fake media stream: allowlisted fake number + unknown hangup.
+- **Tests:** `tests/ivr/pytest/test_media_stream_turns.py` (allowlisted fake number + unknown hangup).
 - **Done when:** fake-stream pytest green.
 
 ### Phase 8 — Render + live smoke

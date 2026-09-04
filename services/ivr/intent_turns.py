@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
@@ -228,6 +229,86 @@ class IntentTurnEngine:
         if transcript is None:
             return None
         return await self.handle_transcript(transcript.text, outbound, cancel=cancel)
+
+    async def handle_inbound_queue(
+        self,
+        inbound_audio: asyncio.Queue[bytes],
+        outbound: asyncio.Queue[str],
+        stop_event: asyncio.Event,
+        *,
+        dtmf_digits: asyncio.Queue[str] | None = None,
+        cancel: asyncio.Event | None = None,
+    ) -> IntentTurnResult | None:
+        """Read live Media Stream frames (or a DTMF digit) until one dialogue result."""
+        self.vad.reset()
+        while not stop_event.is_set():
+            if dtmf_digits is not None:
+                try:
+                    digit = dtmf_digits.get_nowait()
+                except asyncio.QueueEmpty:
+                    digit = None
+                if digit:
+                    return await self.handle_dtmf(digit, outbound, cancel=cancel)
+            try:
+                chunk = await asyncio.wait_for(inbound_audio.get(), timeout=0.1)
+            except asyncio.TimeoutError:
+                continue
+            await self.stt.feed_mulaw(chunk)
+            for event in self.vad.process_mulaw(chunk):
+                if event.kind == "speech_end":
+                    self.ttfb.mark_speech_end()
+                    transcript = await self.stt.finish()
+                    if transcript is None:
+                        return None
+                    return await self.handle_transcript(
+                        transcript.text, outbound, cancel=cancel
+                    )
+        return None
+
+    async def run_on_queues(
+        self,
+        *,
+        inbound_audio: asyncio.Queue[bytes],
+        outbound_audio: asyncio.Queue[str],
+        stop_event: asyncio.Event,
+        dtmf_digits: asyncio.Queue[str] | None = None,
+        play_menu: bool = True,
+        max_turns: int = 8,
+        on_turn: Callable[[list[IntentTurnResult]], None] | None = None,
+    ) -> list[IntentTurnResult]:
+        """Handoff after language selection: same inbound/outbound/DTMF queues."""
+        await self.start()
+        if self.card() is None:
+            result = await self.refuse_unknown(outbound_audio)
+            if on_turn is not None:
+                on_turn([result])
+            await outbound_audio.join()
+            stop_event.set()
+            return [result]
+        if play_menu:
+            await self.play_phrase(MAIN_MENU, outbound_audio, measure_ttfb=False)
+        results: list[IntentTurnResult] = []
+        for _ in range(max_turns):
+            if stop_event.is_set():
+                break
+            result = await self.handle_inbound_queue(
+                inbound_audio,
+                outbound_audio,
+                stop_event,
+                dtmf_digits=dtmf_digits,
+            )
+            if result is None:
+                break
+            results.append(result)
+            if on_turn is not None:
+                on_turn(results)
+            if result.hung_up:
+                await outbound_audio.join()
+                stop_event.set()
+                break
+            if result.ended:
+                break
+        return results
 
     async def run_scripted_session(
         self,

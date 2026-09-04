@@ -19,8 +19,8 @@ Env vars (delete `IVR_LID_FORCE_LANGUAGE` if it is set to `en`):
 ```env
 IVR_USE_SPEECHBRAIN_LID=true
 IVR_STT_BACKEND=scripted
-IVR_STT_SCRIPT=balance,goodbye
 IVR_PLAYBACK_REALTIME=false
+INTENT_EMBEDDER=fake
 DEBUG=true
 TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
 ```

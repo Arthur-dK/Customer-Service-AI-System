@@ -7,6 +7,8 @@ from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response
 
 from app.deps import (
+    get_caller_store,
+    get_intent_router,
     get_lid,
     get_phrase_cache,
     get_streaming_stt,
@@ -17,9 +19,9 @@ from app.deps import (
 from core.cards import last4_phone
 from core.config import settings
 from core.language import resolve_caller_locale
+from services.ivr.intent_turns import IntentTurnEngine
 from services.ivr.language_selection import CLEAR_AUDIO_SENTINEL, LanguageSelector
 from services.ivr.selection_store import set_last_language_selection
-from services.ivr.turn_engine import PlaceholderTurnEngine
 from services.ivr.turn_store import set_last_turns
 from services.ivr.ttfb import TtfbHarness
 from services.ivr.twiml import build_media_stream_connect_twiml
@@ -63,7 +65,7 @@ async def voice_webhook(request: Request):
 
 @router.websocket("/media-stream")
 async def twilio_media_stream(websocket: WebSocket):
-    """Bi-directional Twilio Media Stream: language selection, then placeholder tasks."""
+    """Bi-directional Twilio Media Stream: language selection, then card-intent turns."""
     await websocket.accept()
 
     inbound_audio_queue: asyncio.Queue[bytes] = asyncio.Queue()
@@ -190,9 +192,14 @@ async def twilio_media_stream(websocket: WebSocket):
             )
             while not inbound_audio_queue.empty():
                 inbound_audio_queue.get_nowait()
+            while not dtmf_queue.empty():
+                dtmf_queue.get_nowait()
             try:
-                engine = PlaceholderTurnEngine(
+                engine = IntentTurnEngine(
                     language=result.language,
+                    phone_number=phone_number,
+                    store=get_caller_store(),
+                    router=get_intent_router(),
                     cache=get_phrase_cache(),
                     stt=get_streaming_stt(),
                     ttfb=TtfbHarness(),
@@ -203,13 +210,14 @@ async def twilio_media_stream(websocket: WebSocket):
                     inbound_audio=inbound_audio_queue,
                     outbound_audio=outbound_audio_queue,
                     stop_event=stop_event,
+                    dtmf_digits=dtmf_queue,
                     play_menu=True,
                     on_turn=set_last_turns,
                 )
             except asyncio.CancelledError:
                 raise
             except Exception:
-                logger.exception("placeholder_turns crashed")
+                logger.exception("intent_turns crashed")
         else:
             logger.warning("language_selection ended without a language")
 

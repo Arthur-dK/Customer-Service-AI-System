@@ -55,7 +55,7 @@ def _install_fast_backends(*, placeholder: bool = False) -> None:
         cache = PhraseAudioCache(tts, cache_dir=ROOT / ".cache" / "ivr-phrases-manual")
         asyncio.run(cache.warmup(languages=("en",)))
         ivr_api.get_phrase_cache = lambda: cache  # type: ignore
-        ivr_api.get_streaming_stt = lambda: ScriptedStreamingSpeechToText(finals=["balance"])  # type: ignore
+        ivr_api.get_streaming_stt = lambda: ScriptedStreamingSpeechToText(finals=["what is my balance"])  # type: ignore
         ivr_api.get_streaming_tts = lambda: build_default_streaming_tts(tts)  # type: ignore
 
 
@@ -78,7 +78,7 @@ def _collect_media(websocket, min_frames: int = 1, timeout_s: float = 2.0) -> in
 def main() -> int:
     parser = argparse.ArgumentParser(description="Fake Twilio media-stream language harness.")
     parser.add_argument("--mode", choices=("dtmf", "speech", "placeholder"), default="dtmf")
-    parser.add_argument("--from-number", default="+442071838750")
+    parser.add_argument("--from-number", default="+15555550100")
     args = parser.parse_args()
 
     _install_fast_backends(placeholder=args.mode == "placeholder")
@@ -152,7 +152,7 @@ def main() -> int:
         "tts_ran": result.metrics.tts_calls >= 1,
     }
     if args.mode == "placeholder":
-        checks["placeholder_turn"] = bool(turns) and turns[0].phrase_id == "placeholder_balance"
+        checks["intent_turn"] = bool(turns) and turns[0].phrase_id == "get_balance"
     failed = [name for name, ok in checks.items() if not ok]
     for name, ok in checks.items():
         print(f"  check[{name}] = {'PASS' if ok else 'FAIL'}")

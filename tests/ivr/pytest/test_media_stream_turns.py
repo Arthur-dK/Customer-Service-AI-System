@@ -1,4 +1,4 @@
-"""Fake Twilio stream: language selection then placeholder task turn."""
+"""Fake Twilio stream: language selection then intent turns (allowlist vs hangup)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import time
 from fastapi.testclient import TestClient
 
 from app.main import app
-from core.language.phrases import PLACEHOLDER_BALANCE
+from core.language.phrases import GET_BALANCE, UNKNOWN_CALLER
 from services.ivr.audio import chunk_mulaw, generate_silence_mulaw, generate_tone_mulaw
 from services.ivr.lid import FixedLanguageIdentifier
 from services.ivr.phrase_cache import PhraseAudioCache
@@ -22,11 +22,13 @@ from tests.ivr.manual.fake_twilio_stream import (
     connected_message,
     dtmf_message,
     media_message,
-    parse_outbound,
     start_message,
     stop_message,
 )
 from tests.ivr.pytest.test_media_stream_language import _collect_outbound_media, _wait_for_selection
+
+ALLOWLISTED = "+15555550100"
+UNKNOWN = "+15555550999"
 
 
 def _wait_for_turns(timeout_s: float = 3.0):
@@ -47,13 +49,12 @@ def _send_utterance(websocket) -> None:
         websocket.send_text(media_message(chunk))
 
 
-def test_media_stream_placeholder_turn_after_language_selection(tmp_path, monkeypatch):
+def _patch_stream(monkeypatch, tmp_path, *, finals: list[str]) -> None:
     tts = ToneTextToSpeech(ms_per_char=5, min_ms=40, max_ms=80)
-    cache = PhraseAudioCache(tts, cache_dir=tmp_path)
+    cache = PhraseAudioCache(tts, cache_dir=tmp_path / "phrases")
     asyncio.run(cache.warmup(languages=("en",)))
     lid = FixedLanguageIdentifier(language="en", confidence=0.99)
-    stt = ScriptedStreamingSpeechToText(finals=["balance"])
-
+    stt = ScriptedStreamingSpeechToText(finals=finals)
     monkeypatch.setattr("app.api.ivr.get_tts", lambda: tts)
     monkeypatch.setattr("app.api.ivr.get_lid", lambda: lid)
     monkeypatch.setattr("app.api.ivr.get_phrase_cache", lambda: cache)
@@ -63,13 +64,17 @@ def test_media_stream_placeholder_turn_after_language_selection(tmp_path, monkey
     monkeypatch.setattr("app.api.ivr.settings.IVR_PLAYBACK_REALTIME", False)
     monkeypatch.setattr("app.api.ivr.settings.IVR_MIN_LID_CONFIDENCE", 0.1)
 
+
+def test_media_stream_allowlisted_get_balance(tmp_path, monkeypatch, isolated_caller_store):
+    _patch_stream(monkeypatch, tmp_path, finals=["what is my balance"])
+    assert isolated_caller_store.lookup(ALLOWLISTED) is not None
     clear_last_language_selection()
     clear_last_turns()
 
     client = TestClient(app)
     with client.websocket_connect("/media-stream") as websocket:
         websocket.send_text(connected_message())
-        websocket.send_text(start_message(from_number="+442071838750"))
+        websocket.send_text(start_message(from_number=ALLOWLISTED))
 
         prompt = _collect_outbound_media(websocket, min_frames=1, overall_timeout_s=2.0)
         assert any(m.get("event") == "media" for m in prompt)
@@ -91,7 +96,38 @@ def test_media_stream_placeholder_turn_after_language_selection(tmp_path, monkey
         websocket.send_text(stop_message())
 
     assert turns
-    assert turns[0].phrase_id == PLACEHOLDER_BALANCE
+    assert turns[0].phrase_id == GET_BALANCE
+    assert getattr(turns[0], "hung_up", False) is False
     assert turns[0].language == "en"
     assert turns[0].chunks_sent >= 1
     assert any(m.get("event") == "media" for m in reply)
+
+
+def test_media_stream_unknown_caller_hangs_up(tmp_path, monkeypatch, isolated_caller_store):
+    _patch_stream(monkeypatch, tmp_path, finals=["what is my balance"])
+    assert isolated_caller_store.lookup(UNKNOWN) is None
+    clear_last_language_selection()
+    clear_last_turns()
+
+    client = TestClient(app)
+    with client.websocket_connect("/media-stream") as websocket:
+        websocket.send_text(connected_message())
+        websocket.send_text(start_message(from_number=UNKNOWN))
+
+        prompt = _collect_outbound_media(websocket, min_frames=1, overall_timeout_s=2.0)
+        assert any(m.get("event") == "media" for m in prompt)
+
+        websocket.send_text(dtmf_message("1"))
+        selected = _wait_for_selection(timeout_s=2.0)
+        assert selected is not None
+
+        refusal = _collect_outbound_media(websocket, min_frames=1, overall_timeout_s=2.0)
+        turns = _wait_for_turns(timeout_s=3.0)
+        websocket.send_text(stop_message())
+
+    assert turns
+    assert len(turns) == 1
+    assert turns[0].phrase_id == UNKNOWN_CALLER
+    assert turns[0].hung_up is True
+    assert turns[0].ended is True
+    assert any(m.get("event") == "media" for m in refusal)

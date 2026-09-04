@@ -1,18 +1,21 @@
-"""In-memory placeholder-turn results for fake Twilio / pytest harnesses."""
+"""In-memory last-turn results for fake Twilio / pytest harnesses."""
 
 from __future__ import annotations
 
+from services.ivr.intent_turns import IntentTurnResult
 from services.ivr.turn_engine import TurnResult
 
-_last_turns: list[TurnResult] = []
+TurnRecord = IntentTurnResult | TurnResult
+
+_last_turns: list[TurnRecord] = []
 
 
-def set_last_turns(turns: list[TurnResult] | None) -> None:
+def set_last_turns(turns: list[TurnRecord] | None) -> None:
     global _last_turns
     _last_turns = list(turns or [])
 
 
-def get_last_turns() -> list[TurnResult]:
+def get_last_turns() -> list[TurnRecord]:
     return list(_last_turns)
 
 

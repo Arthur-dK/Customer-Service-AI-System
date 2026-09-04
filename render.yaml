@@ -11,9 +11,9 @@ services:
         value: "true"
       - key: IVR_STT_BACKEND
         value: scripted
-      - key: IVR_STT_SCRIPT
-        value: balance,goodbye
       - key: IVR_PLAYBACK_REALTIME
         value: "false"
+      - key: INTENT_EMBEDDER
+        value: fake
       - key: TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD
         value: "1"
