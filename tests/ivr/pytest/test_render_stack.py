@@ -22,6 +22,7 @@ def test_dockerfile_installs_intent_extras():
     assert "faster_whisper" in text
     assert "sentence_transformers" in text
     assert "IVR_STT_BACKEND=whisper" in text
+    assert "IVR_WHISPER_MODEL=tiny" in text
     assert "INTENT_EMBEDDER=bge" in text
 
 

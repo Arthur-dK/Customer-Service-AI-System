@@ -10,8 +10,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     IVR_USE_SPEECHBRAIN_LID=true \
     IVR_LID_FORCE_LANGUAGE= \
     IVR_STT_BACKEND=whisper \
+    IVR_WHISPER_MODEL=tiny \
     INTENT_EMBEDDER=bge \
-    TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
+    TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 \
+    OMP_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
+    OPENBLAS_NUM_THREADS=1 \
+    TOKENIZERS_PARALLELISM=false
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libgomp1 ffmpeg libsndfile1 \

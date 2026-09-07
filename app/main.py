@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager, suppress
 import asyncio
 import logging
+import sys
 
 from fastapi import FastAPI
 
@@ -23,10 +24,29 @@ logging.basicConfig(
 )
 
 
+def _rss_mb() -> str:
+    """Linux RSS for Render logs. Windows local boot skips this."""
+    if sys.platform == "win32":
+        return "n/a"
+    try:
+        import resource
+
+        # Linux ru_maxrss is KiB; macOS is bytes.
+        raw = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        mb = raw / 1024.0 if sys.platform != "darwin" else raw / (1024.0 * 1024.0)
+        return f"{mb:.0f}MB"
+    except Exception:
+        return "n/a"
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     log = logging.getLogger(__name__)
-    log.info("TTS spoken languages=%s", list_spoken_languages(get_tts()))
+    log.info(
+        "TTS spoken languages=%s rss=%s",
+        list_spoken_languages(get_tts()),
+        _rss_mb(),
+    )
 
     script = parse_stt_script(settings.IVR_STT_SCRIPT)
     stt = get_streaming_stt()
@@ -87,20 +107,27 @@ async def lifespan(_app: FastAPI):
         except Exception:
             log.exception("IVR intent router warmup failed; first route may be slow")
 
+    async def _boot_warmup() -> None:
+        # One model at a time. Parallel LID + Whisper + BGE spikes RAM and
+        # gets the process killed on Render starter/standard instances.
+        log.info("IVR boot warmup start rss=%s", _rss_mb())
+        await _seed_callers()
+        log.info("IVR boot after caller seed rss=%s", _rss_mb())
+        await _warm_lid()
+        log.info("IVR boot after LID rss=%s", _rss_mb())
+        await _warm_stt()
+        log.info("IVR boot after STT rss=%s", _rss_mb())
+        await _warm_intent()
+        log.info("IVR boot after intent rss=%s", _rss_mb())
+        await _warm_audio()
+        log.info("IVR boot warmup done rss=%s", _rss_mb())
+
     # Do not block /health on Edge TTS or Hugging Face (Render health checks).
-    warmup_tasks = (
-        asyncio.create_task(_warm_audio()),
-        asyncio.create_task(_warm_lid()),
-        asyncio.create_task(_warm_stt()),
-        asyncio.create_task(_seed_callers()),
-        asyncio.create_task(_warm_intent()),
-    )
+    warmup_task = asyncio.create_task(_boot_warmup())
     yield
-    for task in warmup_tasks:
-        task.cancel()
-    for task in warmup_tasks:
-        with suppress(asyncio.CancelledError):
-            await task
+    warmup_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await warmup_task
 
 
 app = FastAPI(

@@ -11,9 +11,24 @@ The image:
 - uses Python 3.12.8
 - installs `requirements-render.txt` (Torch CPU, SpeechBrain, faster-whisper, sentence-transformers)
 - downloads the VoxLingua107 LID model at **build** time
-- downloads Whisper `base` and BGE-M3 on **first boot** (lifespan warmup; `/health` does not wait)
+- downloads Whisper `tiny` and BGE-M3 on **first boot** (lifespan warmup; `/health` does not wait)
 
-**Instance size: 8 GB RAM class** (not 2 GB). SpeechBrain + Whisper + BGE-M3 will not fit comfortably on a 2 GB instance. First boot may exceed a short health-check window; keep `/health` off that warmup (already the case).
+**Instance size: 8 GB RAM class** (Pro Plus). Starter (512 MB) and Standard (2 GB) will be killed as soon as SpeechBrain + Whisper + BGE-M3 load. Twilio then says “an application error has occurred” because the process is gone. First boot may exceed a short health-check window; keep `/health` off that warmup (already the case).
+
+## Application error / “exceeded its memory limit”
+
+Render’s email is the cause, not a Twilio bug. The dashboard can still show a green deploy while the dyno is crash-looping on RAM.
+
+In **Logs**, look for:
+
+1. Lines that stop after `IVR boot warmup start` / `after LID` / `after STT` — the next model did not fit.
+2. `rss=` jumping by hundreds of MB per step, then silence and a restart.
+3. Missing `IVR boot warmup done` — boot never finished.
+4. No need to hunt for a Python traceback; the kernel just kills the process.
+
+Healthy boot (8 GB) should include, in order: `caller store seeded`, `IVR LID warmed`, `IVR STT warmed`, `IVR intent router warmed class=BgeM3Embedder`, `IVR boot warmup done rss=`.
+
+In the dashboard: **Settings → Instance type → Pro Plus (8 GB)**. Then **Manual Deploy** (clear cache not required for a plan change). If `IVR_WHISPER_MODEL` is still `base` in env vars, set it to `tiny`.
 
 ## Env vars
 
@@ -30,7 +45,7 @@ Dashboard / `render.yaml` defaults:
 ```env
 IVR_USE_SPEECHBRAIN_LID=true
 IVR_STT_BACKEND=whisper
-IVR_WHISPER_MODEL=base
+IVR_WHISPER_MODEL=tiny
 INTENT_EMBEDDER=bge
 IVR_USE_EDGE_TTS=true
 IVR_PLAYBACK_REALTIME=false

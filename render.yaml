@@ -12,7 +12,7 @@ services:
       - key: IVR_STT_BACKEND
         value: whisper
       - key: IVR_WHISPER_MODEL
-        value: base
+        value: tiny
       - key: IVR_PLAYBACK_REALTIME
         value: "false"
       - key: INTENT_EMBEDDER

@@ -165,7 +165,7 @@ Optional `"pin"` only in that overlay. Example seed last-4 is `4242`; stub balan
 
 ```env
 IVR_STT_BACKEND=whisper
-IVR_WHISPER_MODEL=base
+IVR_WHISPER_MODEL=tiny
 INTENT_EMBEDDER=bge
 IVR_USE_EDGE_TTS=true
 IVR_PLAYBACK_REALTIME=false
@@ -193,7 +193,7 @@ Useful logs: `incoming_call from_last4=`, `language_selected`, `intent_turn phra
 
 ## Render notes (Phase 8)
 
-Details: [deploy-render.md](../deploy-render.md). **8 GB RAM** class (not 2 GB). Image installs faster-whisper + sentence-transformers; Whisper and BGE weights download on first boot. `/health` does not wait on that warmup. Allowlist your handset with secret `CALLER_OVERRIDE_JSON`, never git.
+Details: [deploy-render.md](../deploy-render.md). **8 GB RAM** class (not 512 MB / 2 GB). Image installs faster-whisper + sentence-transformers; Whisper and BGE weights download on first boot. `/health` does not wait on that warmup. Allowlist your handset with secret `CALLER_OVERRIDE_JSON`, never git. A memory-limit email plus Twilio “application error” means the instance was killed while loading models.
 
 ---
 
